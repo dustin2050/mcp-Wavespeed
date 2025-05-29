@@ -3,7 +3,7 @@ name = "wavespeed-mcp"
 version = "0.1.1"
 description = "WaveSpeed MCP Server"
 authors = [
-    { name = "Wavespeed AI Team", email = "team@wavespeed.ai" },
+    { name = "Wavespeed AI Team", email = "support@wavespeed.ai" },
 ]
 readme = "README.md"
 license = { file = "LICENSE" }

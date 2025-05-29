@@ -1,5 +1,7 @@
 # WavespeedMCP
 
+## [English](README.md) ｜ [中文文档](README.zh.md) 
+
 WavespeedMCP is a Model Control Protocol (MCP) server implementation for WaveSpeed AI services. It provides a standardized interface for accessing WaveSpeed's image and video generation capabilities through the MCP protocol.
 
 ## Features
@@ -114,4 +116,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For support or feature requests, please contact the WaveSpeed AI team at team@wavespeed.ai.
+For support or feature requests, please contact the WaveSpeed AI team at support@wavespeed.ai.
