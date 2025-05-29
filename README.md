@@ -1,38 +1,117 @@
-# MCP WaveSpeed Server
+# WavespeedMCP
 
-WaveSpeed AI 图像和视频生成服务的MCP服务器实现
+WavespeedMCP is a Model Control Protocol (MCP) server implementation for WaveSpeed AI services. It provides a standardized interface for accessing WaveSpeed's image and video generation capabilities through the MCP protocol.
 
-## Make Package
+## Features
+
+- **Advanced Image Generation**: Create high-quality images from text prompts with support for image-to-image generation, inpainting, and LoRA models
+- **Dynamic Video Generation**: Transform static images into videos with customizable motion parameters
+- **Optimized Performance**: Enhanced API polling with intelligent retry logic and detailed progress tracking
+- **Flexible Resource Handling**: Support for URL, Base64, and local file output modes
+- **Comprehensive Error Handling**: Specialized exception hierarchy for precise error identification and recovery
+- **Robust Logging**: Detailed logging system for monitoring and debugging
+- **Multiple Configuration Options**: Support for environment variables, command-line arguments, and configuration files
+
+## Installation
+
+### Prerequisites
+
+- Python 3.11+
+- WaveSpeed API key (obtain from [WaveSpeed AI](https://wavespeed.ai))
+
+### Setup
+
+Install directly from PyPI:
+```bash
+pip install wavespeed-mcp
+```
+
+### MCP Configuration
+
+To use WavespeedMCP with your IDE or application, add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "Wavespeed": {
+      "command": "wavespeed-mcp",
+      "env": {
+        "WAVESPEED_API_KEY": "wavespeedkey"
+      }
+    }
+  }
+}
+```
+
+## Usage
+
+### Running the Server
+
+Start the WavespeedMCP server:
 
 ```bash
-python setup.py sdist bdist_wheel
-
-# 上传到PyPI
-pip install twine
-twine upload dist/*
+wavespeed-mcp --api-key your_api_key_here
 ```
 
-## Pypi apikey
+## Configuration Options
 
-![image](./assets/pypi-apikey.jpg)
+WavespeedMCP can be configured through:
 
-## 安装
+1. **Environment Variables**:
+   - `WAVESPEED_API_KEY`: Your WaveSpeed API key (required)
+   - `WAVESPEED_API_HOST`: API host URL (default: https://api.wavespeed.ai)
+   - `WAVESPEED_MCP_BASE_PATH`: Base path for output files (default: ~/Desktop)
+   - `RESOURCE_MODE`: Resource output mode (options: url, base64, local; default: url)
+   - `LOG_LEVEL`: Logging level (options: DEBUG, INFO, WARNING, ERROR; default: INFO)
+   - `TIMEOUT_SECONDS`: API request timeout in seconds (default: 60)
+   - `MAX_RETRIES`: Maximum number of API retry attempts (default: -1 infinite)
+   - `RETRY_DELAY`: Delay between retry attempts in seconds (default: 1)
+   - `POLLING_INTERVAL`: Interval for polling generation status in seconds (default: 2)
+   - `ENABLE_TELEMETRY`: Enable/disable anonymous usage statistics (default: true)
 
-### 从PyPI安装
+2. **Command-line Arguments**:
+   - `--api-key`: Your WaveSpeed API key
+   - `--api-host`: API host URL
+   - `--config`: Path to configuration file
+
+3. **Configuration File** (JSON format):
+   See `wavespeed_mcp_config_demo.json` for an example.
+
+## Architecture
+
+WavespeedMCP follows a clean, modular architecture:
+
+- `server.py`: Core MCP server implementation with tool definitions
+- `client.py`: Optimized API client with intelligent polling
+- `utils.py`: Comprehensive utility functions for resource handling
+- `exceptions.py`: Specialized exception hierarchy for error handling
+- `const.py`: Constants and default configuration values
+
+## Development
+
+### Requirements
+
+- Python 3.11+
+- Development dependencies: `pip install -e ".[dev]"`
+
+### Testing
+
+Run the test suite:
 
 ```bash
-# 安装
-pip install mcp-server-wavespeed
-# 运行
-mcp-wavespeed --api-key YOUR_API_KEY
+pytest
 ```
 
-## 使用
+Or with coverage reporting:
 
-```python
-from mcp_server_wavespeed import WaveSpeedServer
-server = WaveSpeedServer()
-server.run()
+```bash
+pytest --cov=wavespeed_mcp
 ```
 
-详见 mcp_client.py
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support or feature requests, please contact the WaveSpeed AI team at team@wavespeed.ai.
