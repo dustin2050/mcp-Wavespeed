@@ -31,7 +31,7 @@ def get_python_path():
 
 
 def generate_config(api_key: str | None = None):
-    """生成 Claude 配置文件。"""
+    """Generate Claude config file."""
     final_api_key = api_key or os.environ.get("WAVESPEED_API_KEY")
     if not final_api_key:
         print("Error: WaveSpeed API key is required.")
@@ -44,10 +44,7 @@ def generate_config(api_key: str | None = None):
     config = {
         "mcpServers": {
             "WaveSpeed": {
-                "command": "uvx",
-                "args": [
-                    "wavespeed-mcp",
-                ],
+                "command": "wavespeed-mcp",
                 "env": {
                     "WAVESPEED_API_KEY": final_api_key,
                     "WAVESPEED_MCP_BASE_PATH": "",

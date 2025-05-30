@@ -40,12 +40,22 @@ from wavespeed_mcp.const import (
     ENV_RESOURCE_MODE,
     RESOURCE_MODE_URL,
     RESOURCE_MODE_BASE64,
+    DEFAULT_LOG_LEVEL,
+    ENV_FASTMCP_LOG_LEVEL,
     API_VERSION,
     API_BASE_PATH,
     API_IMAGE_ENDPOINT,
     API_VIDEO_ENDPOINT,
+    API_IMAGE_TO_IMAGE_ENDPOINT,
+    ENV_API_TEXT_TO_IMAGE_ENDPOINT,
+    ENV_API_IMAGE_TO_IMAGE_ENDPOINT,
+    ENV_API_VIDEO_ENDPOINT,
 )
-from wavespeed_mcp.exceptions import WavespeedRequestError, WavespeedAuthError, WavespeedTimeoutError
+from wavespeed_mcp.exceptions import (
+    WavespeedRequestError,
+    WavespeedAuthError,
+    WavespeedTimeoutError,
+)
 from wavespeed_mcp.client import WavespeedAPIClient
 
 # Load environment variables
@@ -54,7 +64,8 @@ load_dotenv()
 # Configure logging
 
 logging.basicConfig(
-    level="INFO", format="%(asctime)s - wavespeed-mcp - %(levelname)s - %(message)s"
+    level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL),
+    format="%(asctime)s - wavespeed-mcp - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("wavespeed-mcp")
 
@@ -70,9 +81,7 @@ if not api_key:
 
 # Initialize MCP server and API client
 mcp = FastMCP(
-    # "WaveSpeed", log_level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL)
-    "WaveSpeed",
-    log_level="INFO",
+    "WaveSpeed", log_level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL)
 )
 api_client = WavespeedAPIClient(api_key, f"{api_host}{API_BASE_PATH}/{API_VERSION}")
 
@@ -107,17 +116,174 @@ class WaveSpeedResult(BaseModel):
         return json.dumps(self.model_dump(), indent=2)
 
 
+def _process_wavespeed_request(
+    api_endpoint: str,
+    payload: dict,
+    output_directory: Optional[str],
+    prompt: str,
+    resource_type: str = "image",  # "image" or "video"
+    operation_name: str = "Generation",
+) -> TextContent:
+    """Process a WaveSpeed API request and handle the response.
+
+    This is a common function to handle API requests, polling for results,
+    and processing the output based on the resource mode.
+
+    Args:
+        api_endpoint: The API endpoint to call
+        payload: The request payload
+        output_directory: Directory to save generated files
+        prompt: The prompt used for generation
+        resource_type: Type of resource being generated ("image" or "video")
+        operation_name: Name of the operation for logging
+
+    Returns:
+        TextContent with the result JSON
+    """
+
+    begin_time = time.time()
+    try:
+        # Make API request
+        response_data = api_client.post(api_endpoint, json=payload)
+        request_id = response_data.get("data", {}).get("id")
+
+        if not request_id:
+            return TextContent(
+                type="text",
+                text="Failed to get request ID from response. Please try again.",
+            )
+
+        logger.info(f"{operation_name} request submitted with ID: {request_id}")
+
+        # Poll for results
+        result = api_client.poll_result(request_id)
+        outputs = result.get("outputs", [])
+
+        if not outputs:
+            return TextContent(
+                type="text",
+                text=f"No {resource_type} outputs received. Please try again.",
+            )
+
+        end = time.time()
+        processing_time = end - begin_time
+
+        logger.info(f"{operation_name} completed in {processing_time:.2f} seconds")
+
+        # Prepare result
+        result = WaveSpeedResult(urls=outputs, processing_time=processing_time)
+
+        # Handle different resource modes
+        if resource_mode == RESOURCE_MODE_URL:
+            # Only return URLs
+            pass
+        elif resource_mode == RESOURCE_MODE_BASE64:
+            # Get base64 encoding
+            if resource_type == "video":
+                # For video, usually just one is returned
+                video_url = outputs[0]
+                try:
+                    response = requests.get(video_url)
+                    response.raise_for_status()
+
+                    # Convert to base64
+                    import base64
+
+                    base64_data = base64.b64encode(response.content).decode("utf-8")
+
+                    result.base64.append(
+                        Base64Info(data=base64_data, mime_type="video/mp4", index=0)
+                    )
+
+                    logger.info(f"Successfully encoded {resource_type} to base64")
+                except Exception as e:
+                    logger.error(f"Failed to encode {resource_type}: {str(e)}")
+            else:
+                # For images, handle multiple outputs
+                for i, url in enumerate(outputs):
+                    try:
+                        # Get base64 encoding and MIME type
+                        base64_data, mime_type = get_image_as_base64(url)
+                        result.base64.append(
+                            Base64Info(data=base64_data, mime_type=mime_type, index=i)
+                        )
+                        logger.info(
+                            f"Successfully encoded {resource_type} {i+1}/{len(outputs)} to base64"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to encode {resource_type} {i+1}: {str(e)}"
+                        )
+        else:
+            # Save to local file
+            output_path = build_output_path(output_directory, base_path)
+            output_path.mkdir(parents=True, exist_ok=True)
+
+            if resource_type == "video":
+                # For video, usually just one is returned
+                video_url = outputs[0]
+                try:
+                    filename = build_output_file(
+                        resource_type, prompt, output_path, "mp4"
+                    )
+
+                    response = requests.get(video_url, stream=True)
+                    response.raise_for_status()
+
+                    with open(filename, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+
+                    result.local_files.append(FileInfo(path=str(filename), index=0))
+                    logger.info(f"Successfully saved {resource_type} to {filename}")
+                except Exception as e:
+                    logger.error(f"Failed to save {resource_type}: {str(e)}")
+            else:
+                # For images, handle multiple outputs
+                for i, url in enumerate(outputs):
+                    try:
+                        output_file_name = build_output_file(
+                            resource_type, f"{i}_{prompt}", output_path, "jpeg"
+                        )
+
+                        response = requests.get(url)
+                        response.raise_for_status()
+
+                        with open(output_file_name, "wb") as f:
+                            f.write(response.content)
+
+                        result.local_files.append(
+                            FileInfo(path=str(output_file_name), index=i)
+                        )
+                        logger.info(
+                            f"Successfully saved {resource_type} {i+1}/{len(outputs)} to {output_file_name}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to save {resource_type} {i+1}: {str(e)}")
+
+        # Return unified JSON structure
+        return TextContent(type="text", text=result.to_json())
+
+    except (WavespeedAuthError, WavespeedRequestError, WavespeedTimeoutError) as e:
+        logger.error(f"{operation_name} failed: {str(e)}")
+        error_result = WaveSpeedResult(
+            status="error", error=f"Failed to generate {resource_type}: {str(e)}"
+        )
+        return TextContent(type="text", text=error_result.to_json())
+    except Exception as e:
+        logger.exception(f"Unexpected error during {operation_name.lower()}: {str(e)}")
+        error_result = WaveSpeedResult(
+            status="error", error=f"An unexpected error occurred: {str(e)}"
+        )
+        return TextContent(type="text", text=error_result.to_json())
+
+
 @mcp.tool(
-    description="""Generate an image using WaveSpeed AI.
-    COST WARNING: This tool makes an API call to WaveSpeed which may incur costs.
-    Only use when explicitly requested by the user.
+    description="""Generate an image from text prompt using WaveSpeed AI.
 
     Args:
         prompt (str): Text description of the image to generate.
-        image (str, optional): URL of an input image for image-to-image generation.
-        mask_image (str, optional): URL of a mask image for inpainting.
         loras (list, optional): List of LoRA models to use, each with a path and scale.
-        strength (float, optional): Strength of the input image influence (0.0-1.0).
         size (str, optional): Size of the output image in format "width*height".
         num_inference_steps (int, optional): Number of denoising steps.
         guidance_scale (float, optional): Guidance scale for text adherence.
@@ -127,15 +293,18 @@ class WaveSpeedResult(BaseModel):
         output_directory (str, optional): Directory to save the generated images.
 
     Returns:
-        WaveSpeedResult object with the result of the image generation.
+        WaveSpeedResult object with the result of the image generation, containing:
+        - status: "success" or "error"
+        - urls: List of image URLs if successful
+        - base64: List of base64 encoded images if resource_mode is set to base64
+        - local_files: List of local file paths if resource_mode is set to local
+        - error: Error message if status is "error"
+        - processing_time: Time taken to generate the image(s)
     """
 )
-def generate_image(
+def text_to_image(
     prompt: str,
-    image: str = "",
-    mask_image: str = "",
     loras: Optional[List[Dict[str, Union[str, float]]]] = None,
-    strength: float = DEFAULT_STRENGTH,
     size: str = DEFAULT_IMAGE_SIZE,
     num_inference_steps: int = DEFAULT_NUM_INFERENCE_STEPS,
     guidance_scale: float = DEFAULT_GUIDANCE_SCALE,
@@ -144,8 +313,7 @@ def generate_image(
     enable_safety_checker: bool = True,
     output_directory: str = None,
 ):
-    """Generate an image using WaveSpeed AI."""
-    begin = time.time()
+    """Generate an image from text prompt using WaveSpeed AI."""
 
     if not prompt:
         return TextContent(type="text", text="Prompt is required for image generation")
@@ -159,9 +327,6 @@ def generate_image(
     # Prepare API payload
     payload = {
         "prompt": prompt,
-        "image": image,
-        "mask_image": mask_image,
-        "strength": strength,
         "loras": loras,
         "size": size,
         "num_inference_steps": num_inference_steps,
@@ -172,97 +337,77 @@ def generate_image(
         "enable_safety_checker": enable_safety_checker,
     }
 
-    try:
-        # Make API request
-        response_data = api_client.post(API_IMAGE_ENDPOINT, json=payload)
-        request_id = response_data.get("data", {}).get("id")
+    return _process_wavespeed_request(
+        api_endpoint=os.getenv(ENV_API_TEXT_TO_IMAGE_ENDPOINT, API_IMAGE_ENDPOINT),
+        payload=payload,
+        output_directory=output_directory,
+        prompt=prompt,
+        resource_type="image",
+        operation_name="Image generation",
+    )
 
-        if not request_id:
-            return TextContent(type="text", text="Failed to get request ID from response. Please try again.")
 
-        logger.info(f"Image generation request submitted with ID: {request_id}")
+@mcp.tool(
+    description="""Generate an image from an existing image using WaveSpeed AI.
 
-        # Poll for results
-        result = api_client.poll_result(request_id)
-        outputs = result.get("outputs", [])
+    Args:
+        image (str): URL of the input image to modify. Required.
+        prompt (str): Text description of the desired modifications.
+        guidance_scale (float, optional): Guidance scale for text adherence (default: 3.5) [1.0-10.0].
+        enable_safety_checker (bool, optional): Whether to enable safety filtering (default: True).
+        output_directory (str, optional): Directory to save the generated images.
 
-        if not outputs:
-            return TextContent(type="text", text="No image outputs received. Please try again.")
+    Returns:
+        WaveSpeedResult object with the result of the image generation, containing:
+        - status: "success" or "error"
+        - urls: List of image URLs if successful
+        - base64: List of base64 encoded images if resource_mode is set to base64
+        - local_files: List of local file paths if resource_mode is set to local
+        - error: Error message if status is "error"
+        - processing_time: Time taken to generate the image(s)
+    """
+)
+def image_to_image(
+    image: str,
+    prompt: str,
+    guidance_scale: float = 3.5,
+    enable_safety_checker: bool = True,
+    output_directory: str = None,
+):
+    """Generate an image from an existing image using WaveSpeed AI."""
 
-        end = time.time()
-        processing_time = end - begin
-
-        logger.info(f"Image generation completed in {processing_time:.2f} seconds")
-
-        # 准备返回结果
-        result = WaveSpeedResult(urls=outputs, processing_time=processing_time)
-
-        # 处理不同的资源模式
-        if resource_mode == RESOURCE_MODE_URL:
-            # 只返回URLs
-            pass
-        elif resource_mode == RESOURCE_MODE_BASE64:
-            # 获取base64编码
-            for i, url in enumerate(outputs):
-                try:
-                    # 获取图像的base64编码和MIME类型
-                    base64_data, mime_type = get_image_as_base64(url)
-                    result.base64.append(
-                        Base64Info(data=base64_data, mime_type=mime_type, index=i)
-                    )
-                    logger.info(
-                        f"Successfully encoded image {i+1}/{len(outputs)} to base64"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to encode image {i+1}: {str(e)}")
-        else:
-            # 保存到本地文件
-            output_path = build_output_path(output_directory, base_path)
-
-            for i, image_url in enumerate(outputs):
-                try:
-                    output_file_name = build_output_file(
-                        "image", f"{i}_{prompt}", output_path, "jpeg"
-                    )
-                    output_path.mkdir(parents=True, exist_ok=True)
-
-                    image_response = requests.get(image_url)
-                    image_response.raise_for_status()
-
-                    with open(output_file_name, "wb") as f:
-                        f.write(image_response.content)
-
-                    result.local_files.append(
-                        FileInfo(path=str(output_file_name), index=i)
-                    )
-                    logger.info(
-                        f"Successfully saved image {i+1}/{len(outputs)} to {output_file_name}"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to save image {i+1}: {str(e)}")
-
-        # 返回统一的JSON结构
-        return TextContent(type="text", text=result.to_json())
-
-    except (WavespeedAuthError, WavespeedRequestError, WavespeedTimeoutError) as e:
-        logger.error(f"Image generation failed: {str(e)}")
-        error_result = WaveSpeedResult(
-            status="error", error=f"Failed to generate image: {str(e)}"
+    if not image:
+        return TextContent(
+            type="text", text="Input image is required for image-to-image generation"
         )
-        return TextContent(type="text", text=error_result.to_json())
-    except Exception as e:
-        logger.exception(f"Unexpected error during image generation: {str(e)}")
-        error_result = WaveSpeedResult(
-            status="error", error=f"An unexpected error occurred: {str(e)}"
+
+    if not prompt:
+        return TextContent(
+            type="text", text="Prompt is required for image-to-image generation"
         )
-        return TextContent(type="text", text=error_result.to_json())
+
+    # Prepare API payload
+    payload = {
+        "image": image,
+        "prompt": prompt,
+        "guidance_scale": guidance_scale,
+        "enable_safety_checker": enable_safety_checker,
+    }
+
+    return _process_wavespeed_request(
+        api_endpoint=os.getenv(
+            ENV_API_IMAGE_TO_IMAGE_ENDPOINT, API_IMAGE_TO_IMAGE_ENDPOINT
+        ),
+        payload=payload,
+        output_directory=output_directory,
+        prompt=prompt,
+        resource_type="image",
+        operation_name="Image-to-image generation",
+    )
 
 
 @mcp.tool(
     description="""Generate a video using WaveSpeed AI.
-    
-    COST WARNING: This tool makes an API call to WaveSpeed which may incur costs. 
-    Only use when explicitly requested by the user.
 
     Args:
         image (str): URL, base64 string, or local file path of the input image to animate.
@@ -297,15 +442,20 @@ def generate_video(
     output_directory: str = None,
 ):
     """Generate a video using WaveSpeed AI."""
-    begin = time.time()
 
     if not image:
         # raise WavespeedRequestError("Input image is required for video generation")
-        return TextContent(type="text", text="Input image is required for video generation. Can use generate_image tool to generate an image first.")
+        return TextContent(
+            type="text",
+            text="Input image is required for video generation. Can use generate_image tool to generate an image first.",
+        )
 
     if not prompt:
         # raise WavespeedRequestError("Prompt is required for video generation")
-        return TextContent(type="text", text="Prompt is required for video generation. Please use en-US as the language.")
+        return TextContent(
+            type="text",
+            text="Prompt is required for video generation. Please use en-US as the language.",
+        )
 
     # Validate and set default loras if not provided
     if not loras:
@@ -314,7 +464,10 @@ def generate_video(
         loras = validate_loras(loras)
 
     if duration not in [5, 10]:
-        return TextContent(type="text", text="Duration must be 5 or 10 seconds. Please set it to 5 or 10.")
+        return TextContent(
+            type="text",
+            text="Duration must be 5 or 10 seconds. Please set it to 5 or 10.",
+        )
 
     # handle image input
     try:
@@ -339,91 +492,14 @@ def generate_video(
         "enable_safety_checker": enable_safety_checker,
     }
 
-    try:
-        # Make API request
-        response_data = api_client.post(API_VIDEO_ENDPOINT, json=payload)
-        request_id = response_data.get("data", {}).get("id")
-
-        if not request_id:
-            return TextContent(type="text", text="Failed to get request ID from response. Please try again.")
-
-        logger.info(f"Video generation request submitted with ID: {request_id}")
-
-        # Poll for results
-        result = api_client.poll_result(request_id)
-        outputs = result.get("outputs", [])
-
-        if not outputs:
-            return TextContent(type="text", text="No video outputs received. Please try again.")
-
-        video_url = outputs[0]  # Usually just one video is returned
-
-        end = time.time()
-        processing_time = end - begin
-
-        logger.info(f"Video generation completed in {processing_time:.2f} seconds")
-
-        # prepare result
-        result = WaveSpeedResult(urls=outputs, processing_time=processing_time)
-
-        # handle different resource mode
-        if resource_mode == RESOURCE_MODE_URL:
-            # only return URLs
-            pass
-        elif resource_mode == RESOURCE_MODE_BASE64:
-            # get base64 encoding
-            try:
-                response = requests.get(video_url)
-                response.raise_for_status()
-
-                # convert to base64
-                import base64
-
-                base64_data = base64.b64encode(response.content).decode("utf-8")
-
-                result.base64.append(
-                    Base64Info(data=base64_data, mime_type="video/mp4", index=0)
-                )
-
-                logger.info("Successfully encoded video to base64")
-            except Exception as e:
-                logger.error(f"Failed to encode video: {str(e)}")
-        else:
-            # save to local file
-            output_path = build_output_path(output_directory, base_path)
-
-            try:
-                filename = build_output_file("video", prompt, output_path, "mp4")
-                output_path.mkdir(parents=True, exist_ok=True)
-
-                response = requests.get(video_url, stream=True)
-                response.raise_for_status()
-
-                with open(filename, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-
-                result.local_files.append(FileInfo(path=str(filename), index=0))
-
-                logger.info(f"Successfully saved video to {filename}")
-            except Exception as e:
-                logger.error(f"Failed to save video: {str(e)}")
-
-        # return result
-        return TextContent(type="text", text=result.to_json())
-
-    except (WavespeedAuthError, WavespeedRequestError, WavespeedTimeoutError) as e:
-        logger.error(f"Video generation failed: {str(e)}")
-        error_result = WaveSpeedResult(
-            status="error", error=f"Failed to generate video: {str(e)}"
-        )
-        return TextContent(type="text", text=error_result.to_json())
-    except Exception as e:
-        logger.exception(f"Unexpected error during video generation: {str(e)}")
-        error_result = WaveSpeedResult(
-            status="error", error=f"An unexpected error occurred: {str(e)}"
-        )
-        return TextContent(type="text", text=error_result.to_json())
+    return _process_wavespeed_request(
+        api_endpoint=os.getenv(ENV_API_VIDEO_ENDPOINT, API_VIDEO_ENDPOINT),
+        payload=payload,
+        output_directory=output_directory,
+        prompt=prompt,
+        resource_type="video",
+        operation_name="Video generation",
+    )
 
 
 def main():

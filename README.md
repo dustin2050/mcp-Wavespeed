@@ -1,6 +1,6 @@
 # WavespeedMCP
 
-## [English](README.md) ｜ [中文文档](README.zh.md) 
+## [English](README.md) ｜ [中文文档](README.zh.md)
 
 WavespeedMCP is a Model Control Protocol (MCP) server implementation for WaveSpeed AI services. It provides a standardized interface for accessing WaveSpeed's image and video generation capabilities through the MCP protocol.
 
@@ -24,6 +24,7 @@ WavespeedMCP is a Model Control Protocol (MCP) server implementation for WaveSpe
 ### Setup
 
 Install directly from PyPI:
+
 ```bash
 pip install wavespeed-mcp
 ```
@@ -55,23 +56,36 @@ Start the WavespeedMCP server:
 wavespeed-mcp --api-key your_api_key_here
 ```
 
+### Claude Desktop Integration
+
+WavespeedMCP can be integrated with Claude Desktop. To generate the necessary configuration file:
+
+```bash
+python -m wavespeed_mcp --api-key your_api_key_here --config-path /path/to/claude/config
+```
+
+This command generates a `claude_desktop_config.json` file that configures Claude Desktop to use WavespeedMCP tools. After generating the configuration:
+
+1. Start the WavespeedMCP server using the `wavespeed-mcp` command
+2. Launch Claude Desktop, which will use the configured WavespeedMCP tools
+
 ## Configuration Options
 
 WavespeedMCP can be configured through:
 
 1. **Environment Variables**:
+
    - `WAVESPEED_API_KEY`: Your WaveSpeed API key (required)
    - `WAVESPEED_API_HOST`: API host URL (default: https://api.wavespeed.ai)
    - `WAVESPEED_MCP_BASE_PATH`: Base path for output files (default: ~/Desktop)
    - `RESOURCE_MODE`: Resource output mode (options: url, base64, local; default: url)
-   - `LOG_LEVEL`: Logging level (options: DEBUG, INFO, WARNING, ERROR; default: INFO)
-   - `TIMEOUT_SECONDS`: API request timeout in seconds (default: 60)
-   - `MAX_RETRIES`: Maximum number of API retry attempts (default: -1 infinite)
-   - `RETRY_DELAY`: Delay between retry attempts in seconds (default: 1)
-   - `POLLING_INTERVAL`: Interval for polling generation status in seconds (default: 2)
-   - `ENABLE_TELEMETRY`: Enable/disable anonymous usage statistics (default: true)
+   - `FASTMCP_LOG_LEVEL`: Logging level (options: DEBUG, INFO, WARNING, ERROR; default: INFO)
+   - `WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT`: Custom endpoint for text-to-image generation (default: /wavespeed-ai/flux-dev-lora)
+   - `WAVESPEED_API_IMAGE_TO_IMAGE_ENDPOINT`: Custom endpoint for image-to-image generation (default: /wavespeed-ai/flux-kontext-pro)
+   - `WAVESPEED_API_VIDEO_ENDPOINT`: Custom endpoint for video generation (default: /wavespeed-ai/wan-2.1/i2v-480p-lora)
 
 2. **Command-line Arguments**:
+
    - `--api-key`: Your WaveSpeed API key
    - `--api-host`: API host URL
    - `--config`: Path to configuration file

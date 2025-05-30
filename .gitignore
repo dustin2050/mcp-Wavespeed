@@ -53,6 +53,7 @@ config.local.yaml
 config.local.yml
 config.local.json
 .env.local
+claude_desktop_config.json
 
 # Testing
 .coverage

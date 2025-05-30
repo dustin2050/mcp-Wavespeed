@@ -22,6 +22,7 @@ WavespeedMCP 是 WaveSpeed AI 服务的模型控制协议（MCP）服务器实�
 ### 安装步骤
 
 直接从 PyPI 安装：
+
 ```bash
 pip install wavespeed-mcp
 ```
@@ -53,23 +54,36 @@ pip install wavespeed-mcp
 wavespeed-mcp --api-key your_api_key_here
 ```
 
+### Claude Desktop 集成
+
+WavespeedMCP 可以与 Claude Desktop 集成。要生成必要的配置文件：
+
+```bash
+python -m wavespeed_mcp --api-key your_api_key_here --config-path /path/to/claude/config
+```
+
+此命令生成一个 `claude_desktop_config.json` 文件，该文件配置 Claude Desktop 使用 WavespeedMCP 工具。生成配置后：
+
+1. 使用 `wavespeed-mcp` 命令启动 WavespeedMCP 服务器
+2. 启动 Claude Desktop，它将使用配置好的 WavespeedMCP 工具
+
 ## 配置选项
 
 WavespeedMCP 可以通过以下方式进行配置：
 
 1. **环境变量**：
+
    - `WAVESPEED_API_KEY`：您的 WaveSpeed API 密钥（必需）
    - `WAVESPEED_API_HOST`：API 主机 URL（默认：https://api.wavespeed.ai）
    - `WAVESPEED_MCP_BASE_PATH`：输出文件的基本路径（默认：~/Desktop）
    - `RESOURCE_MODE`：资源输出模式（选项：url、base64、local；默认：url）
-   - `LOG_LEVEL`：日志级别（选项：DEBUG、INFO、WARNING、ERROR；默认：INFO）
-   - `TIMEOUT_SECONDS`：API 请求超时时间（秒）（默认：60）
-   - `MAX_RETRIES`：API 重试尝试的最大次数（默认：-1 无限）
-   - `RETRY_DELAY`：重试尝试之间的延迟（秒）（默认：1）
-   - `POLLING_INTERVAL`：轮询生成状态的间隔（秒）（默认：2）
-   - `ENABLE_TELEMETRY`：启用/禁用匿名使用统计（默认：true）
+   - `FASTMCP_LOG_LEVEL`：日志级别（选项：DEBUG、INFO、WARNING、ERROR；默认：INFO）
+   - `WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT`：文本生成图像的自定义端点（默认：/wavespeed-ai/flux-dev-lora）
+   - `WAVESPEED_API_IMAGE_TO_IMAGE_ENDPOINT`：图像编辑的自定义端点（默认：/wavespeed-ai/flux-kontext-pro）
+   - `WAVESPEED_API_VIDEO_ENDPOINT`：视频生成的自定义端点（默认：/wavespeed-ai/wan-2.1/i2v-480p-lora）
 
 2. **命令行参数**：
+
    - `--api-key`：您的 WaveSpeed API 密钥
    - `--api-host`：API 主机 URL
    - `--config`：配置文件的路径
