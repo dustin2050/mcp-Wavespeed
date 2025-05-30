@@ -32,7 +32,6 @@ from wavespeed_mcp.const import (
     DEFAULT_GUIDANCE_SCALE,
     DEFAULT_NUM_IMAGES,
     DEFAULT_SEED,
-    DEFAULT_STRENGTH,
     DEFAULT_IMAGE_LORA,
     ENV_WAVESPEED_API_KEY,
     ENV_WAVESPEED_API_HOST,
@@ -447,7 +446,7 @@ def generate_video(
         # raise WavespeedRequestError("Input image is required for video generation")
         return TextContent(
             type="text",
-            text="Input image is required for video generation. Can use generate_image tool to generate an image first.",
+            text="Input image is required for video generation. Can use generate_image tool to generate an image first."
         )
 
     if not prompt:

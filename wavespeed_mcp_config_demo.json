@@ -8,7 +8,7 @@
         "WAVESPEED_API_HOST": "https://api.wavespeed.ai",
         "WAVESPEED_MCP_BASE_PATH": "~/Desktop",
         "RESOURCE_MODE": "url",
-        "FASTMCP_LOG_LEVEL": "INFO"
+        "WAVESPEED_LOG_LEVEL": "INFO"
       }
     }
   },
