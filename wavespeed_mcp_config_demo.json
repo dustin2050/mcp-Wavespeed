@@ -7,7 +7,7 @@
         "WAVESPEED_API_KEY": "your_api_key_here",
         "WAVESPEED_API_HOST": "https://api.wavespeed.ai",
         "WAVESPEED_MCP_BASE_PATH": "~/Desktop",
-        "RESOURCE_MODE": "url",
+        "WAVESPEED_API_RESOURCE_MODE": "url",
         "WAVESPEED_LOG_LEVEL": "INFO"
       }
     }
