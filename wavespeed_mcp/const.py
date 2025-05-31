@@ -34,7 +34,7 @@ RESOURCE_MODE_URL = "url"  # provide resource url
 # API endpoints
 API_VERSION = "v3"
 API_BASE_PATH = "/api"
-API_IMAGE_ENDPOINT = "/wavespeed-ai/flux-dev-lora"
+API_IMAGE_ENDPOINT = "/wavespeed-ai/flux-dev"
 API_IMAGE_TO_IMAGE_ENDPOINT = "/wavespeed-ai/flux-kontext-pro"
 API_VIDEO_ENDPOINT = "/wavespeed-ai/wan-2.1/i2v-480p-lora"
 ENV_API_TEXT_TO_IMAGE_ENDPOINT = "WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT"

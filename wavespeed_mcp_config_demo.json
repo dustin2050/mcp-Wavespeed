@@ -22,7 +22,7 @@
     "retry_delay": 1,
     "polling_interval": 2,
     "endpoints": {
-      "text_to_image": "/wavespeed-ai/flux-dev-lora",
+      "text_to_image": "/wavespeed-ai/flux-dev",
       "image_to_image": "/wavespeed-ai/flux-kontext-pro",
       "video": "/wavespeed-ai/wan-2.1/i2v-480p-lora"
     }

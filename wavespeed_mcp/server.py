@@ -13,7 +13,6 @@ import time
 import json
 import logging
 from typing import Dict, List, Optional, Union
-from pathlib import Path
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
@@ -71,7 +70,7 @@ logger = logging.getLogger("wavespeed-mcp")
 # Get configuration from environment variables
 api_key = os.getenv(ENV_WAVESPEED_API_KEY)
 api_host = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
-base_path = os.getenv(ENV_WAVESPEED_MCP_BASE_PATH) or str(Path.home() / "Desktop")
+base_path = os.getenv(ENV_WAVESPEED_MCP_BASE_PATH) or "~/Desktop"
 resource_mode = os.getenv(ENV_RESOURCE_MODE, RESOURCE_MODE_URL)
 
 # Validate required environment variables

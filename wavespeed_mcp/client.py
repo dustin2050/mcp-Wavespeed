@@ -47,7 +47,9 @@ class WavespeedAPIClient:
             WavespeedAuthError: If authentication fails
             WavespeedRequestError: If the request fails
         """
-        url = f"{self.api_host}{endpoint}"
+        host = self.api_host.rstrip('/')
+        path = endpoint if endpoint.startswith('/') else f'/{endpoint}'
+        url = f"{host}{path}"
 
         logger.debug(f"Making {method} request to {url}")
 

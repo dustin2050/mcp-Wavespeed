@@ -56,7 +56,7 @@ class TestWavespeedIntegration(unittest.TestCase):
         }
 
         print("Calling API with params:", params)
-        result = asyncio.run(self._run_client("generate_image", params))
+        result = asyncio.run(self._run_client("text_to_image", params))
         print("Received API response: ", result)
 
         # Verify result

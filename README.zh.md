@@ -78,7 +78,7 @@ WavespeedMCP 可以通过以下方式进行配置：
    - `WAVESPEED_MCP_BASE_PATH`：输出文件的基本路径（默认：~/Desktop）
    - `WAVESPEED_API_RESOURCE_MODE`：资源输出模式（选项：url、base64、local；默认：url）
    - `WAVESPEED_LOG_LEVEL`：日志级别（选项：DEBUG、INFO、WARNING、ERROR；默认：INFO）
-   - `WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT`：文本生成图像的自定义端点（默认：/wavespeed-ai/flux-dev-lora）
+   - `WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT`：文本生成图像的自定义端点（默认：/wavespeed-ai/flux-dev）
    - `WAVESPEED_API_IMAGE_TO_IMAGE_ENDPOINT`：图像编辑的自定义端点（默认：/wavespeed-ai/flux-kontext-pro）
    - `WAVESPEED_API_VIDEO_ENDPOINT`：视频生成的自定义端点（默认：/wavespeed-ai/wan-2.1/i2v-480p-lora）
 

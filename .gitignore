@@ -102,3 +102,4 @@ wheels/
 *.bak
 *.swp
 *~.nib
+example/

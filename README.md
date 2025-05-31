@@ -80,7 +80,7 @@ WavespeedMCP can be configured through:
    - `WAVESPEED_MCP_BASE_PATH`: Base path for output files (default: ~/Desktop)
    - `WAVESPEED_API_RESOURCE_MODE`: Resource output mode (options: url, base64, local; default: url)
    - `WAVESPEED_LOG_LEVEL`: Logging level (options: DEBUG, INFO, WARNING, ERROR; default: INFO)
-   - `WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT`: Custom endpoint for text-to-image generation (default: /wavespeed-ai/flux-dev-lora)
+   - `WAVESPEED_API_TEXT_TO_IMAGE_ENDPOINT`: Custom endpoint for text-to-image generation (default: /wavespeed-ai/flux-dev)
    - `WAVESPEED_API_IMAGE_TO_IMAGE_ENDPOINT`: Custom endpoint for image-to-image generation (default: /wavespeed-ai/flux-kontext-pro)
    - `WAVESPEED_API_VIDEO_ENDPOINT`: Custom endpoint for video generation (default: /wavespeed-ai/wan-2.1/i2v-480p-lora)
 
