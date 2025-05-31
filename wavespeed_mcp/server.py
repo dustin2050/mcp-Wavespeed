@@ -384,9 +384,17 @@ def image_to_image(
             type="text", text="Prompt is required for image-to-image generation"
         )
 
+    # handle image input
+    try:
+        processed_image = process_image_input(image)
+        logger.info("Successfully processed input image")
+    except Exception as e:
+        logger.error(f"Failed to process input image: {str(e)}")
+        return TextContent(type="text", text=f"Failed to process input image: {str(e)}")
+
     # Prepare API payload
     payload = {
-        "image": image,
+        "image": processed_image,
         "prompt": prompt,
         "guidance_scale": guidance_scale,
         "enable_safety_checker": enable_safety_checker,
