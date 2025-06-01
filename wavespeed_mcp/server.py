@@ -24,6 +24,7 @@ from wavespeed_mcp.utils import (
     validate_loras,
     get_image_as_base64,
     process_image_input,
+    is_english_text,
 )
 from wavespeed_mcp.const import (
     DEFAULT_IMAGE_SIZE,
@@ -280,7 +281,7 @@ def _process_wavespeed_request(
     description="""Generate an image from text prompt using WaveSpeed AI.
 
     Args:
-        prompt (str): Required. Text description of the image to generate. For best results, use detailed English prompts even if your interface language is not English.
+        prompt (str): Required. Text description of the image to generate. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
         loras (list, optional): List of LoRA models to use, each with a path and scale. Format: [{"path": "model_path", "scale": weight_value}]. Default model used if not provided.
         size (str, optional): Size of the output image in format "width*height", e.g., "512*512". Default: 1024*1024.
         num_inference_steps (int, optional): Number of denoising steps. Higher values improve quality but increase generation time. Default: 30.
@@ -327,7 +328,17 @@ def text_to_image(
     """Generate an image from text prompt using WaveSpeed AI."""
 
     if not prompt:
-        return TextContent(type="text", text="Prompt is required for image generation")
+        return TextContent(
+            type="text",
+            text="Prompt is required for image generation. Please provide an English prompt for optimal results.",
+        )
+
+    # Check if prompt is in English
+    if not is_english_text(prompt):
+        return TextContent(
+            type="text",
+            text="Prompt must be in English. Please provide an English prompt for optimal results.",
+        )
 
     # Validate and set default loras if not provided
     if not loras:
@@ -363,7 +374,7 @@ def text_to_image(
 
     Args:
         image (str): Required. URL, base64 string, or local file path of the input image to modify.
-        prompt (str): Required. Text description of the desired modifications. For best results, use detailed English prompts even if your interface language is not English.
+        prompt (str): Required. Text description of the desired modifications. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
         guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the output follows the prompt. Range: [1.0-10.0]. Default: 3.5.
         enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
         output_directory (str, optional): Directory to save the generated images. Uses a temporary directory if not provided.
@@ -402,7 +413,15 @@ def image_to_image(
 
     if not prompt:
         return TextContent(
-            type="text", text="Prompt is required for image-to-image generation"
+            type="text",
+            text="Prompt is required for image-to-image generation. Please provide an English prompt for optimal results.",
+        )
+
+    # Check if prompt is in English
+    if not is_english_text(prompt):
+        return TextContent(
+            type="text",
+            text="Prompt must be in English. Please provide an English prompt for optimal results.",
         )
 
     # handle image input
@@ -438,7 +457,7 @@ def image_to_image(
 
     Args:
         image (str): Required. URL, base64 string, or local file path of the input image to animate.
-        prompt (str): Required. Text description of the video to generate. For best results, use detailed English prompts even if your interface language is not English.
+        prompt (str): Required. Text description of the video to generate. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
         negative_prompt (str, optional): Text description of what to avoid in the video. Default: "".
         loras (list, optional): List of LoRA models to use, each with a path and scale. Format: [{"path": "model_path", "scale": weight_value}]. Default: [].
         size (str, optional): Size of the output video in format "width*height". Default: "832*480".
@@ -469,8 +488,9 @@ def image_to_image(
         )
         
     Note: 
-        For optimal results, always provide prompts in English, regardless of your interface language.
-        Non-English prompts may result in lower quality or unexpected videos.
+        IMPORTANT: Prompts MUST be in English. The system only processes English prompts properly.
+        Non-English prompts will be rejected or produce low-quality results. If user input is not in English,
+        you MUST translate it to English before passing to this tool.
     """
 )
 def generate_video(
@@ -493,14 +513,21 @@ def generate_video(
         # raise WavespeedRequestError("Input image is required for video generation")
         return TextContent(
             type="text",
-            text="Input image is required for video generation. Can use generate_image tool to generate an image first."
+            text="Input image is required for video generation. Can use generate_image tool to generate an image first.",
         )
 
     if not prompt:
         # raise WavespeedRequestError("Prompt is required for video generation")
         return TextContent(
             type="text",
-            text="Prompt is required for video generation. Please use en-US as the language.",
+            text="Prompt is required for video generation. Please provide an English prompt for optimal results.",
+        )
+
+    # Check if prompt is in English
+    if not is_english_text(prompt):
+        return TextContent(
+            type="text",
+            text="Prompt must be in English. Please provide an English prompt for optimal results.",
         )
 
     # Validate and set default loras if not provided

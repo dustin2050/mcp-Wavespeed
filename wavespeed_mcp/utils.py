@@ -261,6 +261,27 @@ def process_image_input(image_input: str) -> str:
     raise WavespeedMcpError(f"Unrecognized image input format: {image_input[:50]}...")
 
 
+def is_english_text(text: str) -> bool:
+    """
+    Check if a text is primarily in English.
+
+    Args:
+        text: The text to check
+
+    Returns:
+        True if the text is primarily in English, False otherwise
+    """
+    # Simple heuristic: Check if most characters are ASCII
+    # This is a basic check and can be improved with more sophisticated language detection
+    if not text:
+        return True
+
+    # Count ASCII characters (English text is mostly ASCII)
+    ascii_count = sum(1 for char in text if ord(char) < 128)
+    # If more than 80% of characters are ASCII, consider it English
+    return ascii_count / len(text) > 0.8
+
+
 def validate_loras(
     loras: Optional[List[Dict[str, Union[str, float]]]]
 ) -> List[Dict[str, Union[str, float]]]:
