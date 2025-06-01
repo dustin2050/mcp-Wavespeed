@@ -47,8 +47,8 @@ class WavespeedAPIClient:
             WavespeedAuthError: If authentication fails
             WavespeedRequestError: If the request fails
         """
-        host = self.api_host.rstrip('/')
-        path = endpoint if endpoint.startswith('/') else f'/{endpoint}'
+        host = self.api_host.rstrip("/")
+        path = endpoint if endpoint.startswith("/") else f"/{endpoint}"
         url = f"{host}{path}"
 
         logger.debug(f"Making {method} request to {url}")
@@ -103,36 +103,39 @@ class WavespeedAPIClient:
         result_url = f"{API_PREDICTION_ENDPOINT}/{request_id}/result"
 
         attempt = 0
-        
+
         logger.info(f"Starting API polling for request ID: {request_id}")
-        
-        # 记录开始时间
+
         start_time = time.time()
-        
+
         while True:
             if max_retries != -1 and attempt >= max_retries:
                 break
-                
+
             try:
-                # 每10次轮询打印详细日志
                 if attempt % 10 == 0:
-                    logger.debug(f"Polling result attempt {attempt+1}/{max_retries if max_retries != -1 else '∞'}...")
-                    
+                    logger.debug(
+                        f"Polling result attempt {attempt+1}/{max_retries if max_retries != -1 else '∞'}..."
+                    )
+
                 response = self.get(result_url)
                 result = response.get("data", {})
                 status = result.get("status")
 
-                # 打印状态日志
                 if attempt % 10 == 0:
                     logger.debug(f"Current status: {status}")
 
                 if status == "completed":
                     elapsed = time.time() - start_time
-                    logger.info(f"API polling completed after {attempt} attempts ({elapsed:.1f}s)")
+                    logger.info(
+                        f"API polling completed after {attempt} attempts ({elapsed:.1f}s)"
+                    )
                     return result
                 elif status == "failed":
                     elapsed = time.time() - start_time
-                    logger.error(f"API polling failed after {attempt} attempts ({elapsed:.1f}s)")
+                    logger.error(
+                        f"API polling failed after {attempt} attempts ({elapsed:.1f}s)"
+                    )
                     error = result.get("error", "unknown error")
                     raise WavespeedRequestError(f"API request failed: {error}")
 
@@ -151,5 +154,7 @@ class WavespeedAPIClient:
 
         # If we've exhausted all retries
         elapsed = time.time() - start_time
-        logger.error(f"API polling timed out after {max_retries} attempts ({elapsed:.1f}s)")
+        logger.error(
+            f"API polling timed out after {max_retries} attempts ({elapsed:.1f}s)"
+        )
         raise WavespeedTimeoutError(f"Polling timed out after {max_retries} attempts")

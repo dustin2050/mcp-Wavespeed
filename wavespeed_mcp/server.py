@@ -280,15 +280,15 @@ def _process_wavespeed_request(
     description="""Generate an image from text prompt using WaveSpeed AI.
 
     Args:
-        prompt (str): Text description of the image to generate.
-        loras (list, optional): List of LoRA models to use, each with a path and scale.
-        size (str, optional): Size of the output image in format "width*height".
-        num_inference_steps (int, optional): Number of denoising steps.
-        guidance_scale (float, optional): Guidance scale for text adherence.
-        num_images (int, optional): Number of images to generate.
-        seed (int, optional): Random seed (-1 for random).
-        enable_safety_checker (bool, optional): Whether to enable safety filtering.
-        output_directory (str, optional): Directory to save the generated images.
+        prompt (str): Required. Text description of the image to generate. For best results, use detailed English prompts even if your interface language is not English.
+        loras (list, optional): List of LoRA models to use, each with a path and scale. Format: [{"path": "model_path", "scale": weight_value}]. Default model used if not provided.
+        size (str, optional): Size of the output image in format "width*height", e.g., "512*512". Default: 1024*1024.
+        num_inference_steps (int, optional): Number of denoising steps. Higher values improve quality but increase generation time. Default: 30.
+        guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the image matches the text description. Default: 7.5.
+        num_images (int, optional): Number of images to generate. Default: 1.
+        seed (int, optional): Random seed for reproducible results. Set to -1 for random. Default: -1.
+        enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
+        output_directory (str, optional): Directory to save the generated images. Uses a temporary directory if not provided.
 
     Returns:
         WaveSpeedResult object with the result of the image generation, containing:
@@ -298,6 +298,19 @@ def _process_wavespeed_request(
         - local_files: List of local file paths if resource_mode is set to local
         - error: Error message if status is "error"
         - processing_time: Time taken to generate the image(s)
+        
+    Examples:
+        Basic usage: text_to_image(prompt="A golden retriever running on grass")
+        Advanced usage: text_to_image(
+            prompt="A golden retriever running on grass", 
+            size="1024*1024", 
+            num_inference_steps=50,
+            seed=42
+        )
+        
+    Note: 
+        For optimal results, always provide prompts in English, regardless of your interface language.
+        Non-English prompts may result in lower quality or unexpected images.
     """
 )
 def text_to_image(
@@ -349,11 +362,11 @@ def text_to_image(
     description="""Generate an image from an existing image using WaveSpeed AI.
 
     Args:
-        image (str): URL of the input image to modify. Required.
-        prompt (str): Text description of the desired modifications.
-        guidance_scale (float, optional): Guidance scale for text adherence (default: 3.5) [1.0-10.0].
-        enable_safety_checker (bool, optional): Whether to enable safety filtering (default: True).
-        output_directory (str, optional): Directory to save the generated images.
+        image (str): Required. URL, base64 string, or local file path of the input image to modify.
+        prompt (str): Required. Text description of the desired modifications. For best results, use detailed English prompts even if your interface language is not English.
+        guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the output follows the prompt. Range: [1.0-10.0]. Default: 3.5.
+        enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
+        output_directory (str, optional): Directory to save the generated images. Uses a temporary directory if not provided.
 
     Returns:
         WaveSpeedResult object with the result of the image generation, containing:
@@ -363,6 +376,14 @@ def text_to_image(
         - local_files: List of local file paths if resource_mode is set to local
         - error: Error message if status is "error"
         - processing_time: Time taken to generate the image(s)
+        
+    Examples:
+        Basic usage: image_to_image(image="https://example.com/image.jpg", prompt="Make it look like winter")
+        Local file: image_to_image(image="/path/to/local/image.jpg", prompt="Convert to oil painting style")
+        
+    Note: 
+        For optimal results, always provide prompts in English, regardless of your interface language.
+        Non-English prompts may result in lower quality or unexpected images.
     """
 )
 def image_to_image(
@@ -416,21 +437,40 @@ def image_to_image(
     description="""Generate a video using WaveSpeed AI.
 
     Args:
-        image (str): URL, base64 string, or local file path of the input image to animate.
-        prompt (str): Text description of the video to generate.
-        negative_prompt (str, optional): Text description of what to avoid in the video.
-        loras (list, optional): List of LoRA models to use, each with a path and scale.
-        size (str, optional): Size of the output video in format "width*height".
-        num_inference_steps (int, optional): Number of denoising steps.
-        duration (int, optional): Duration of the video in seconds. enum: [5, 10]
-        guidance_scale (float, optional): Guidance scale for text adherence.
-        flow_shift (int, optional): Shift of the flow in the video.
-        seed (int, optional): Random seed (-1 for random).
-        enable_safety_checker (bool, optional): Whether to enable safety filtering.
-        output_directory (str, optional): Directory to save the generated video.
+        image (str): Required. URL, base64 string, or local file path of the input image to animate.
+        prompt (str): Required. Text description of the video to generate. For best results, use detailed English prompts even if your interface language is not English.
+        negative_prompt (str, optional): Text description of what to avoid in the video. Default: "".
+        loras (list, optional): List of LoRA models to use, each with a path and scale. Format: [{"path": "model_path", "scale": weight_value}]. Default: [].
+        size (str, optional): Size of the output video in format "width*height". Default: "832*480".
+        num_inference_steps (int, optional): Number of denoising steps. Higher values improve quality but increase generation time. Default: 30.
+        duration (int, optional): Duration of the video in seconds. Must be either 5 or 10. Default: 5.
+        guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the video matches the text description. Default: 5.
+        flow_shift (int, optional): Shift of the flow in the video. Affects motion intensity. Default: 3.
+        seed (int, optional): Random seed for reproducible results. Set to -1 for random. Default: -1.
+        enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
+        output_directory (str, optional): Directory to save the generated video. Uses a temporary directory if not provided.
 
     Returns:
-        WaveSpeedResult object with the result of the video generation.
+        WaveSpeedResult object with the result of the video generation, containing:
+        - status: "success" or "error"
+        - urls: List of video URLs if successful
+        - base64: List of base64 encoded videos if resource_mode is set to base64
+        - local_files: List of local file paths if resource_mode is set to local
+        - error: Error message if status is "error"
+        - processing_time: Time taken to generate the video(s)
+        
+    Examples:
+        Basic usage: generate_video(image="https://example.com/image.jpg", prompt="The dog running through a forest")
+        Advanced usage: generate_video(
+            image="/path/to/local/image.jpg", 
+            prompt="The dog running through a forest", 
+            duration=10,
+            negative_prompt="blurry, low quality"
+        )
+        
+    Note: 
+        For optimal results, always provide prompts in English, regardless of your interface language.
+        Non-English prompts may result in lower quality or unexpected videos.
     """
 )
 def generate_video(
