@@ -148,10 +148,10 @@ def _process_wavespeed_request(
         request_id = response_data.get("data", {}).get("id")
 
         if not request_id:
-            return TextContent(
-                type="text",
-                text="Failed to get request ID from response. Please try again.",
+            error_result = WaveSpeedResult(
+                status="error", error="Failed to get request ID from response. Please try again."
             )
+            return TextContent(type="text", text=error_result.to_json())
 
         logger.info(f"{operation_name} request submitted with ID: {request_id}")
 
@@ -160,10 +160,10 @@ def _process_wavespeed_request(
         outputs = result.get("outputs", [])
 
         if not outputs:
-            return TextContent(
-                type="text",
-                text=f"No {resource_type} outputs received. Please try again.",
+            error_result = WaveSpeedResult(
+                status="error", error=f"No {resource_type} outputs received. Please try again."
             )
+            return TextContent(type="text", text=error_result.to_json())
 
         end = time.time()
         processing_time = end - begin_time
@@ -363,17 +363,17 @@ def text_to_image(
     """Generate an image from text prompt using WaveSpeed AI."""
 
     if not prompt:
-        return TextContent(
-            type="text",
-            text="Prompt is required for image generation. Please provide an English prompt for optimal results.",
+        error_result = WaveSpeedResult(
+            status="error", error="Prompt is required for image generation. Please provide an English prompt for optimal results."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Check if prompt is in English
     if not is_english_text(prompt):
-        return TextContent(
-            type="text",
-            text="Prompt must be in English. Please provide an English prompt for optimal results.",
+        error_result = WaveSpeedResult(
+            status="error", error="Prompt must be in English. Please provide an English prompt for optimal results."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Validate and set default loras if not provided
     if not loras:
@@ -444,22 +444,23 @@ def image_to_image(
     """Generate an image from an existing image using WaveSpeed AI."""
 
     if not image:
-        return TextContent(
-            type="text", text="Input image is required for image-to-image generation"
+        error_result = WaveSpeedResult(
+            status="error", error="Input image is required for image-to-image generation"
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     if not prompt:
-        return TextContent(
-            type="text",
-            text="Prompt is required for image-to-image generation. Please provide an English prompt for optimal results.",
+        error_result = WaveSpeedResult(
+            status="error", error="Prompt is required for image-to-image generation. Please provide an English prompt for optimal results."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Check if prompt is in English
     if not is_english_text(prompt):
-        return TextContent(
-            type="text",
-            text="Prompt must be in English. Please provide an English prompt for optimal results.",
+        error_result = WaveSpeedResult(
+            status="error", error="Prompt must be in English. Please provide an English prompt for optimal results."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # handle image input
     try:
@@ -467,7 +468,10 @@ def image_to_image(
         logger.info("Successfully processed input image")
     except Exception as e:
         logger.error(f"Failed to process input image: {str(e)}")
-        return TextContent(type="text", text=f"Failed to process input image: {str(e)}")
+        error_result = WaveSpeedResult(
+            status="error", error=f"Failed to process input image: {str(e)}"
+        )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Prepare API payload
     payload = {
@@ -548,24 +552,24 @@ def generate_video(
 
     if not image:
         # raise WavespeedRequestError("Input image is required for video generation")
-        return TextContent(
-            type="text",
-            text="Input image is required for video generation. Can use generate_image tool to generate an image first.",
+        error_result = WaveSpeedResult(
+            status="error", error="Input image is required for video generation. Can use generate_image tool to generate an image first."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     if not prompt:
         # raise WavespeedRequestError("Prompt is required for video generation")
-        return TextContent(
-            type="text",
-            text="Prompt is required for video generation. Please provide an English prompt for optimal results.",
+        error_result = WaveSpeedResult(
+            status="error", error="Prompt is required for video generation. Please provide an English prompt for optimal results."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Check if prompt is in English
     if not is_english_text(prompt):
-        return TextContent(
-            type="text",
-            text="Prompt must be in English. Please provide an English prompt for optimal results.",
+        error_result = WaveSpeedResult(
+            status="error", error="Prompt must be in English. Please provide an English prompt for optimal results."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Validate and set default loras if not provided
     if not loras:
@@ -574,10 +578,10 @@ def generate_video(
         loras = validate_loras(loras)
 
     if duration not in [5, 10]:
-        return TextContent(
-            type="text",
-            text="Duration must be 5 or 10 seconds. Please set it to 5 or 10.",
+        error_result = WaveSpeedResult(
+            status="error", error="Duration must be 5 or 10 seconds. Please set it to 5 or 10."
         )
+        return TextContent(type="text", text=error_result.to_json())
 
     # handle image input
     try:
@@ -585,7 +589,10 @@ def generate_video(
         logger.info("Successfully processed input image")
     except Exception as e:
         logger.error(f"Failed to process input image: {str(e)}")
-        return TextContent(type="text", text=f"Failed to process input image: {str(e)}")
+        error_result = WaveSpeedResult(
+            status="error", error=f"Failed to process input image: {str(e)}"
+        )
+        return TextContent(type="text", text=error_result.to_json())
 
     # Prepare API payload
     payload = {
