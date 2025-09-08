@@ -109,6 +109,7 @@ class WaveSpeedResult(BaseModel):
     local_files: List[FileInfo] = []
     error: Optional[str] = None
     processing_time: float = 0.0
+    model: Optional[str] = None
 
     def to_json(self) -> str:
         """Convert the result to a JSON string."""
@@ -166,11 +167,13 @@ def _process_wavespeed_request(
 
         end = time.time()
         processing_time = end - begin_time
+        
+        model = result.get("model", "")
 
         logger.info(f"{operation_name} completed in {processing_time:.2f} seconds")
 
         # Prepare result
-        result = WaveSpeedResult(urls=outputs, processing_time=processing_time)
+        result = WaveSpeedResult(urls=outputs, processing_time=processing_time, model=model)
 
         # Handle different resource modes
         if resource_mode == RESOURCE_MODE_URL:
@@ -277,11 +280,42 @@ def _process_wavespeed_request(
         return TextContent(type="text", text=error_result.to_json())
 
 
+def get_models(model):
+    if model == "" or model is None:
+        model = os.getenv(ENV_API_TEXT_TO_IMAGE_ENDPOINT, API_IMAGE_ENDPOINT)
+
+    if not model.startswith("/"):
+        model = "/" + model
+
+    return model
+
+
+def get_image_models(model):
+    if model == "" or model is None:
+        model = os.getenv(ENV_API_IMAGE_TO_IMAGE_ENDPOINT, API_IMAGE_TO_IMAGE_ENDPOINT)
+
+    if not model.startswith("/"):
+        model = "/" + model
+
+    return model
+
+
+def get_video_models(model):
+    if model == "" or model is None:
+        model = os.getenv(ENV_API_VIDEO_ENDPOINT, API_VIDEO_ENDPOINT)
+
+    if not model.startswith("/"):
+        model = "/" + model
+
+    return model
+
+
 @mcp.tool(
     description="""Generate an image from text prompt using WaveSpeed AI.
 
     Args:
         prompt (str): Required. Text description of the image to generate. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
+        model (str, optional): Model to use for image generation.
         loras (list, optional): List of LoRA models to use, each with a path and scale. Format: [{"path": "model_path", "scale": weight_value}]. Default model used if not provided.
         size (str, optional): Size of the output image in format "width*height", e.g., "512*512". Default: 1024*1024.
         num_inference_steps (int, optional): Number of denoising steps. Higher values improve quality but increase generation time. Default: 30.
@@ -316,6 +350,7 @@ def _process_wavespeed_request(
 )
 def text_to_image(
     prompt: str,
+    model: Optional[str] = None,
     loras: Optional[List[Dict[str, Union[str, float]]]] = None,
     size: str = DEFAULT_IMAGE_SIZE,
     num_inference_steps: int = DEFAULT_NUM_INFERENCE_STEPS,
@@ -360,7 +395,7 @@ def text_to_image(
     }
 
     return _process_wavespeed_request(
-        api_endpoint=os.getenv(ENV_API_TEXT_TO_IMAGE_ENDPOINT, API_IMAGE_ENDPOINT),
+        api_endpoint=get_models(model),
         payload=payload,
         output_directory=output_directory,
         prompt=prompt,
@@ -375,6 +410,7 @@ def text_to_image(
     Args:
         image (str): Required. URL, base64 string, or local file path of the input image to modify.
         prompt (str): Required. Text description of the desired modifications. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
+        model (str, optional): Model to use for image generation.
         guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the output follows the prompt. Range: [1.0-10.0]. Default: 3.5.
         enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
         output_directory (str, optional): Directory to save the generated images. Uses a temporary directory if not provided.
@@ -400,6 +436,7 @@ def text_to_image(
 def image_to_image(
     image: str,
     prompt: str,
+    model: Optional[str] = None,
     guidance_scale: float = 3.5,
     enable_safety_checker: bool = True,
     output_directory: str = None,
@@ -441,9 +478,7 @@ def image_to_image(
     }
 
     return _process_wavespeed_request(
-        api_endpoint=os.getenv(
-            ENV_API_IMAGE_TO_IMAGE_ENDPOINT, API_IMAGE_TO_IMAGE_ENDPOINT
-        ),
+        api_endpoint=get_image_models(model),
         payload=payload,
         output_directory=output_directory,
         prompt=prompt,
@@ -458,6 +493,7 @@ def image_to_image(
     Args:
         image (str): Required. URL, base64 string, or local file path of the input image to animate.
         prompt (str): Required. Text description of the video to generate. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
+        model (str, optional): Model to use for video generation.
         negative_prompt (str, optional): Text description of what to avoid in the video. Default: "".
         loras (list, optional): List of LoRA models to use, each with a path and scale. Format: [{"path": "model_path", "scale": weight_value}]. Default: [].
         size (str, optional): Size of the output video in format "width*height". Default: "832*480".
@@ -496,6 +532,7 @@ def image_to_image(
 def generate_video(
     image: str,
     prompt: str,
+    model: Optional[str] = None,
     negative_prompt: str = "",
     loras: Optional[List[Dict[str, Union[str, float]]]] = None,
     size: str = "832*480",
@@ -566,7 +603,7 @@ def generate_video(
     }
 
     return _process_wavespeed_request(
-        api_endpoint=os.getenv(ENV_API_VIDEO_ENDPOINT, API_VIDEO_ENDPOINT),
+        api_endpoint=get_video_models(model),
         payload=payload,
         output_directory=output_directory,
         prompt=prompt,
