@@ -149,7 +149,8 @@ def _process_wavespeed_request(
 
         if not request_id:
             error_result = WaveSpeedResult(
-                status="error", error="Failed to get request ID from response. Please try again."
+                status="error",
+                error="Failed to get request ID from response. Please try again.",
             )
             return TextContent(type="text", text=error_result.to_json())
 
@@ -161,19 +162,22 @@ def _process_wavespeed_request(
 
         if not outputs:
             error_result = WaveSpeedResult(
-                status="error", error=f"No {resource_type} outputs received. Please try again."
+                status="error",
+                error=f"No {resource_type} outputs received. Please try again.",
             )
             return TextContent(type="text", text=error_result.to_json())
 
         end = time.time()
         processing_time = end - begin_time
-        
+
         model = result.get("model", "")
 
         logger.info(f"{operation_name} completed in {processing_time:.2f} seconds")
 
         # Prepare result
-        result = WaveSpeedResult(urls=outputs, processing_time=processing_time, model=model)
+        result = WaveSpeedResult(
+            urls=outputs, processing_time=processing_time, model=model
+        )
 
         # Handle different resource modes
         if resource_mode == RESOURCE_MODE_URL:
@@ -364,14 +368,16 @@ def text_to_image(
 
     if not prompt:
         error_result = WaveSpeedResult(
-            status="error", error="Prompt is required for image generation. Please provide an English prompt for optimal results."
+            status="error",
+            error="Prompt is required for image generation. Please provide an English prompt for optimal results.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
     # Check if prompt is in English
     if not is_english_text(prompt):
         error_result = WaveSpeedResult(
-            status="error", error="Prompt must be in English. Please provide an English prompt for optimal results."
+            status="error",
+            error="Prompt must be in English. Please provide an English prompt for optimal results.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
@@ -409,6 +415,7 @@ def text_to_image(
 
     Args:
         image (str): Required. URL, base64 string, or local file path of the input image to modify.
+        images (List[str]): Required. List of URLs to images to modify.
         prompt (str): Required. Text description of the desired modifications. MUST BE IN ENGLISH. Non-English prompts will be rejected or result in poor quality outputs.
         model (str, optional): Model to use for image generation.
         guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the output follows the prompt. Range: [1.0-10.0]. Default: 3.5.
@@ -425,8 +432,9 @@ def text_to_image(
         - processing_time: Time taken to generate the image(s)
         
     Examples:
-        Basic usage: image_to_image(image="https://example.com/image.jpg", prompt="Make it look like winter")
-        Local file: image_to_image(image="/path/to/local/image.jpg", prompt="Convert to oil painting style")
+        Single image: image_to_image(image="https://example.com/image.jpg", images=[], prompt="Make it look like winter")
+        Multiple images: image_to_image(image="", images=["https://example.com/img1.jpg", "https://example.com/img2.jpg"], prompt="Convert to oil painting style")
+        Both parameters: image_to_image(image="https://example.com/main.jpg", images=["https://example.com/ref1.jpg"], prompt="Apply style transfer")
         
     Note: 
         For optimal results, always provide prompts in English, regardless of your interface language.
@@ -435,6 +443,7 @@ def text_to_image(
 )
 def image_to_image(
     image: str,
+    images: List[str],
     prompt: str,
     model: Optional[str] = None,
     guidance_scale: float = 3.5,
@@ -443,43 +452,65 @@ def image_to_image(
 ):
     """Generate an image from an existing image using WaveSpeed AI."""
 
-    if not image:
+    if not image and not images:
         error_result = WaveSpeedResult(
-            status="error", error="Input image is required for image-to-image generation"
+            status="error",
+            error="Input image(s) required for image-to-image generation. Provide either 'image' or 'images' parameter.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
     if not prompt:
         error_result = WaveSpeedResult(
-            status="error", error="Prompt is required for image-to-image generation. Please provide an English prompt for optimal results."
+            status="error",
+            error="Prompt is required for image-to-image generation. Please provide an English prompt for optimal results.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
     # Check if prompt is in English
     if not is_english_text(prompt):
         error_result = WaveSpeedResult(
-            status="error", error="Prompt must be in English. Please provide an English prompt for optimal results."
+            status="error",
+            error="Prompt must be in English. Please provide an English prompt for optimal results.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
-    # handle image input
-    try:
-        processed_image = process_image_input(image)
-        logger.info("Successfully processed input image")
-    except Exception as e:
-        logger.error(f"Failed to process input image: {str(e)}")
-        error_result = WaveSpeedResult(
-            status="error", error=f"Failed to process input image: {str(e)}"
-        )
-        return TextContent(type="text", text=error_result.to_json())
-
-    # Prepare API payload
+    # handle image input(s)
     payload = {
-        "image": processed_image,
         "prompt": prompt,
         "guidance_scale": guidance_scale,
         "enable_safety_checker": enable_safety_checker,
     }
+
+    try:
+        # Process single image if provided
+        if image:
+            processed_image = process_image_input(image)
+            payload["image"] = processed_image
+            logger.info("Successfully processed single input image")
+
+        # Process multiple images if provided
+        if images:
+            processed_images = []
+            for img in images:
+                processed_img = process_image_input(img)
+                processed_images.append(processed_img)
+            payload["images"] = processed_images
+            logger.info(f"Successfully processed {len(processed_images)} input images")
+
+        if not image:
+            image = images[0]
+            payload["image"] = image
+            
+        if not images:
+            images = [image]
+            payload["images"] = images
+
+    except Exception as e:
+        logger.error(f"Failed to process input image(s): {str(e)}")
+        error_result = WaveSpeedResult(
+            status="error", error=f"Failed to process input image(s): {str(e)}"
+        )
+        return TextContent(type="text", text=error_result.to_json())
 
     return _process_wavespeed_request(
         api_endpoint=get_image_models(model),
@@ -553,21 +584,24 @@ def generate_video(
     if not image:
         # raise WavespeedRequestError("Input image is required for video generation")
         error_result = WaveSpeedResult(
-            status="error", error="Input image is required for video generation. Can use generate_image tool to generate an image first."
+            status="error",
+            error="Input image is required for video generation. Can use generate_image tool to generate an image first.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
     if not prompt:
         # raise WavespeedRequestError("Prompt is required for video generation")
         error_result = WaveSpeedResult(
-            status="error", error="Prompt is required for video generation. Please provide an English prompt for optimal results."
+            status="error",
+            error="Prompt is required for video generation. Please provide an English prompt for optimal results.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
     # Check if prompt is in English
     if not is_english_text(prompt):
         error_result = WaveSpeedResult(
-            status="error", error="Prompt must be in English. Please provide an English prompt for optimal results."
+            status="error",
+            error="Prompt must be in English. Please provide an English prompt for optimal results.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
@@ -579,7 +613,8 @@ def generate_video(
 
     if duration not in [5, 10]:
         error_result = WaveSpeedResult(
-            status="error", error="Duration must be 5 or 10 seconds. Please set it to 5 or 10."
+            status="error",
+            error="Duration must be 5 or 10 seconds. Please set it to 5 or 10.",
         )
         return TextContent(type="text", text=error_result.to_json())
 
