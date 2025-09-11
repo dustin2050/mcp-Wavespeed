@@ -394,7 +394,8 @@ def text_to_image(
         "size": size,
         "num_inference_steps": num_inference_steps,
         "guidance_scale": guidance_scale,
-        # "num_images": num_images,
+        "num_images": num_images,
+        "max_images": num_images,
         "seed": seed,
         "enable_base64_output": False,  # 使用URL，后续自己转换为base64
         "enable_safety_checker": enable_safety_checker,
