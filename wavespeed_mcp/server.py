@@ -12,6 +12,7 @@ import requests
 import time
 import json
 import logging
+import uuid
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -41,6 +42,9 @@ from wavespeed_mcp.const import (
     RESOURCE_MODE_BASE64,
     DEFAULT_LOG_LEVEL,
     ENV_FASTMCP_LOG_LEVEL,
+    ENV_WAVESPEED_LOG_FILE,
+    DEFAULT_REQUEST_TIMEOUT,
+    ENV_WAVESPEED_REQUEST_TIMEOUT,
     API_VERSION,
     API_BASE_PATH,
     API_IMAGE_ENDPOINT,
@@ -61,11 +65,38 @@ from wavespeed_mcp.client import WavespeedAPIClient
 load_dotenv()
 
 # Configure logging
+log_file = os.getenv(ENV_WAVESPEED_LOG_FILE)
+log_level = os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL)
+log_format = "%(asctime)s - wavespeed-mcp - %(levelname)s - %(message)s"
 
-logging.basicConfig(
-    level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL),
-    format="%(asctime)s - wavespeed-mcp - %(levelname)s - %(message)s",
-)
+if log_file:
+    # Configure file logging
+    import logging.handlers
+
+    # Create log directory if it doesn't exist
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+    # Configure rotating file handler
+    handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10MB max, 5 backups
+    )
+    handler.setFormatter(logging.Formatter(log_format))
+
+    # Configure root logger
+    logging.basicConfig(
+        level=log_level,
+        handlers=[handler],
+        format=log_format,
+    )
+else:
+    # Default console logging
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+    )
+
 logger = logging.getLogger("wavespeed-mcp")
 
 # Get configuration from environment variables
@@ -73,6 +104,7 @@ api_key = os.getenv(ENV_WAVESPEED_API_KEY)
 api_host = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
 base_path = os.getenv(ENV_WAVESPEED_MCP_BASE_PATH) or "~/Desktop"
 resource_mode = os.getenv(ENV_RESOURCE_MODE, RESOURCE_MODE_URL)
+request_timeout = int(os.getenv(ENV_WAVESPEED_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT))
 
 # Validate required environment variables
 if not api_key:
@@ -123,6 +155,7 @@ def _process_wavespeed_request(
     prompt: str,
     resource_type: str = "image",  # "image" or "video"
     operation_name: str = "Generation",
+    request_id: str = None,
 ) -> TextContent:
     """Process a WaveSpeed API request and handle the response.
 
@@ -142,22 +175,32 @@ def _process_wavespeed_request(
     """
 
     begin_time = time.time()
+
+    # Log API request details
+    logger.info(f"[{request_id}] Making {operation_name} API request to {api_endpoint}")
+    logger.info(f"[{request_id}] Request payload: {json.dumps(payload, indent=2)}")
+
     try:
         # Make API request
         response_data = api_client.post(api_endpoint, json=payload)
-        request_id = response_data.get("data", {}).get("id")
+        wavespeed_request_id = response_data.get("data", {}).get("id")
 
-        if not request_id:
+        if not wavespeed_request_id:
+            logger.error(
+                f"[{request_id}] Failed to get WaveSpeed request ID from response"
+            )
             error_result = WaveSpeedResult(
                 status="error",
                 error="Failed to get request ID from response. Please try again.",
             )
             return TextContent(type="text", text=error_result.to_json())
 
-        logger.info(f"{operation_name} request submitted with ID: {request_id}")
+        logger.info(
+            f"[{request_id}] {operation_name} request submitted with WaveSpeed ID: {wavespeed_request_id}"
+        )
 
         # Poll for results
-        result = api_client.poll_result(request_id)
+        result = api_client.poll_result(wavespeed_request_id, request_id=request_id)
         outputs = result.get("outputs", [])
 
         if not outputs:
@@ -172,7 +215,9 @@ def _process_wavespeed_request(
 
         model = result.get("model", "")
 
-        logger.info(f"{operation_name} completed in {processing_time:.2f} seconds")
+        logger.info(
+            f"[{request_id}] {operation_name} completed in {processing_time:.2f} seconds"
+        )
 
         # Prepare result
         result = WaveSpeedResult(
@@ -189,7 +234,7 @@ def _process_wavespeed_request(
                 # For video, usually just one is returned
                 video_url = outputs[0]
                 try:
-                    response = requests.get(video_url)
+                    response = requests.get(video_url, timeout=request_timeout)
                     response.raise_for_status()
 
                     # Convert to base64
@@ -233,7 +278,9 @@ def _process_wavespeed_request(
                         resource_type, prompt, output_path, "mp4"
                     )
 
-                    response = requests.get(video_url, stream=True)
+                    response = requests.get(
+                        video_url, stream=True, timeout=request_timeout
+                    )
                     response.raise_for_status()
 
                     with open(filename, "wb") as f:
@@ -252,7 +299,7 @@ def _process_wavespeed_request(
                             resource_type, f"{i}_{prompt}", output_path, "jpeg"
                         )
 
-                        response = requests.get(url)
+                        response = requests.get(url, timeout=request_timeout)
                         response.raise_for_status()
 
                         with open(output_file_name, "wb") as f:
@@ -271,13 +318,15 @@ def _process_wavespeed_request(
         return TextContent(type="text", text=result.to_json())
 
     except (WavespeedAuthError, WavespeedRequestError, WavespeedTimeoutError) as e:
-        logger.error(f"{operation_name} failed: {str(e)}")
+        logger.error(f"[{request_id}] {operation_name} failed: {str(e)}")
         error_result = WaveSpeedResult(
             status="error", error=f"Failed to generate {resource_type}: {str(e)}"
         )
         return TextContent(type="text", text=error_result.to_json())
     except Exception as e:
-        logger.exception(f"Unexpected error during {operation_name.lower()}: {str(e)}")
+        logger.exception(
+            f"[{request_id}] Unexpected error during {operation_name.lower()}: {str(e)}"
+        )
         error_result = WaveSpeedResult(
             status="error", error=f"An unexpected error occurred: {str(e)}"
         )
@@ -328,6 +377,7 @@ def get_video_models(model):
         seed (int, optional): Random seed for reproducible results. Set to -1 for random. Default: -1.
         enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
         output_directory (str, optional): Directory to save the generated images. Uses a temporary directory if not provided.
+        request_id (str, optional): Request correlation ID for tracing the entire request chain. Strongly recommended to provide a unique ID (e.g., UUID) to correlate logs across the request lifecycle.
 
     Returns:
         WaveSpeedResult object with the result of the image generation, containing:
@@ -363,8 +413,16 @@ def text_to_image(
     seed: int = DEFAULT_SEED,
     enable_safety_checker: bool = True,
     output_directory: str = None,
+    request_id: str = None,
 ):
     """Generate an image from text prompt using WaveSpeed AI."""
+
+    # Generate unique request ID for tracking
+    if not request_id:
+        request_id = str(uuid.uuid4())[:8]
+    logger.info(
+        f"[{request_id}] MCP text_to_image request - prompt: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}', model: {model}, size: {size}, num_images: {num_images}"
+    )
 
     if not prompt:
         error_result = WaveSpeedResult(
@@ -382,10 +440,13 @@ def text_to_image(
         return TextContent(type="text", text=error_result.to_json())
 
     # Validate and set default loras if not provided
-    if not loras:
-        loras = [DEFAULT_IMAGE_LORA]
-    else:
+    # if not loras:
+    #     loras = [DEFAULT_IMAGE_LORA]
+    # else:
+    if loras:
         loras = validate_loras(loras)
+    else:
+        loras = []
 
     # Prepare API payload
     payload = {
@@ -408,6 +469,7 @@ def text_to_image(
         prompt=prompt,
         resource_type="image",
         operation_name="Image generation",
+        request_id=request_id,
     )
 
 
@@ -422,6 +484,7 @@ def text_to_image(
         guidance_scale (float, optional): Guidance scale for text adherence. Controls how closely the output follows the prompt. Range: [1.0-10.0]. Default: 3.5.
         enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
         output_directory (str, optional): Directory to save the generated images. Uses a temporary directory if not provided.
+        request_id (str, optional): Request correlation ID for tracing the entire request chain. Strongly recommended to provide a unique ID (e.g., UUID) to correlate logs across the request lifecycle.
 
     Returns:
         WaveSpeedResult object with the result of the image generation, containing:
@@ -450,8 +513,16 @@ def image_to_image(
     guidance_scale: float = 3.5,
     enable_safety_checker: bool = True,
     output_directory: str = None,
+    request_id: str = None,
 ):
     """Generate an image from an existing image using WaveSpeed AI."""
+
+    # Generate unique request ID for tracking
+    if not request_id:
+        request_id = str(uuid.uuid4())[:8]
+    logger.info(
+        f"[{request_id}] MCP image_to_image request - prompt: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}', model: {model}, image: {image}, images_count: {len(images)}"
+    )
 
     if not image and not images:
         error_result = WaveSpeedResult(
@@ -501,7 +572,7 @@ def image_to_image(
         if not image:
             image = images[0]
             payload["image"] = image
-            
+
         if not images:
             images = [image]
             payload["images"] = images
@@ -520,6 +591,7 @@ def image_to_image(
         prompt=prompt,
         resource_type="image",
         operation_name="Image-to-image generation",
+        request_id=request_id,
     )
 
 
@@ -540,6 +612,7 @@ def image_to_image(
         seed (int, optional): Random seed for reproducible results. Set to -1 for random. Default: -1.
         enable_safety_checker (bool, optional): Whether to enable safety filtering. Default: True.
         output_directory (str, optional): Directory to save the generated video. Uses a temporary directory if not provided.
+        request_id (str, optional): Request correlation ID for tracing the entire request chain. Strongly recommended to provide a unique ID (e.g., UUID) to correlate logs across the request lifecycle.
 
     Returns:
         WaveSpeedResult object with the result of the video generation, containing:
@@ -579,8 +652,16 @@ def generate_video(
     seed: int = -1,
     enable_safety_checker: bool = True,
     output_directory: str = None,
+    request_id: str = None,
 ):
     """Generate a video using WaveSpeed AI."""
+
+    # Generate unique request ID for tracking
+    if not request_id:
+        request_id = str(uuid.uuid4())[:8]
+    logger.info(
+        f"[{request_id}] MCP generate_video request - prompt: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}', model: {model}, image: {image}, duration: {duration}s"
+    )
 
     if not image:
         # raise WavespeedRequestError("Input image is required for video generation")
@@ -652,6 +733,7 @@ def generate_video(
         prompt=prompt,
         resource_type="video",
         operation_name="Video generation",
+        request_id=request_id,
     )
 
 
