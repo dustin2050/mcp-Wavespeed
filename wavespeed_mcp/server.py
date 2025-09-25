@@ -45,6 +45,8 @@ from wavespeed_mcp.const import (
     ENV_WAVESPEED_LOG_FILE,
     DEFAULT_REQUEST_TIMEOUT,
     ENV_WAVESPEED_REQUEST_TIMEOUT,
+    DEFAULT_WAIT_RESULT_TIMEOUT,
+    ENV_WAVESPEED_WAIT_RESULT_TIMEOUT,
     API_VERSION,
     API_BASE_PATH,
     API_IMAGE_ENDPOINT,
@@ -104,7 +106,12 @@ api_key = os.getenv(ENV_WAVESPEED_API_KEY)
 api_host = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
 base_path = os.getenv(ENV_WAVESPEED_MCP_BASE_PATH) or "~/Desktop"
 resource_mode = os.getenv(ENV_RESOURCE_MODE, RESOURCE_MODE_URL)
+# Per-request HTTP timeout
 request_timeout = int(os.getenv(ENV_WAVESPEED_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT))
+# Total wait timeout for polling results
+wait_result_timeout = int(
+    os.getenv(ENV_WAVESPEED_WAIT_RESULT_TIMEOUT, DEFAULT_WAIT_RESULT_TIMEOUT)
+)
 
 # Validate required environment variables
 if not api_key:
@@ -199,9 +206,11 @@ def _process_wavespeed_request(
             f"[{request_id}] {operation_name} request submitted with WaveSpeed ID: {wavespeed_request_id}"
         )
 
-        # Poll for results (honor server-level request_timeout)
+        # Poll for results using server-level wait_result_timeout
         result = api_client.poll_result(
-            wavespeed_request_id, request_id=request_id, total_timeout=request_timeout
+            wavespeed_request_id,
+            request_id=request_id,
+            total_timeout=wait_result_timeout,
         )
         outputs = result.get("outputs", [])
 

@@ -86,6 +86,23 @@ WavespeedMCP can be configured through:
    - `WAVESPEED_API_IMAGE_TO_IMAGE_ENDPOINT`: Custom endpoint for image-to-image generation (default: /wavespeed-ai/flux-kontext-pro)
    - `WAVESPEED_API_VIDEO_ENDPOINT`: Custom endpoint for video generation (default: /wavespeed-ai/wan-2.1/i2v-480p-lora)
 
+### Timeouts
+
+WavespeedMCP supports two types of timeouts. Configure them via environment variables:
+
+- `WAVESPEED_REQUEST_TIMEOUT`: Per-HTTP request timeout in seconds (default: 300 = 5 minutes).
+  This applies to individual HTTP calls made by the client, such as submitting a job or downloading outputs.
+
+- `WAVESPEED_WAIT_RESULT_TIMEOUT`: Total timeout for waiting/polling results in seconds (default: 600 = 10 minutes).
+  This limits the overall time spent polling for an asynchronous job result. When exceeded, polling stops with a timeout error.
+
+Example:
+
+```bash
+export WAVESPEED_REQUEST_TIMEOUT=300          # per HTTP request
+export WAVESPEED_WAIT_RESULT_TIMEOUT=900      # total wait for result (polling)
+```
+
 ### Logging Configuration
 
 By default, the MCP server logs to console. You can configure file logging by setting the `WAVESPEED_LOG_FILE` environment variable:

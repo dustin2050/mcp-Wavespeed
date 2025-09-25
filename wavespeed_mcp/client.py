@@ -13,8 +13,8 @@ from wavespeed_mcp.exceptions import (
 )
 from wavespeed_mcp.const import (
     API_PREDICTION_ENDPOINT,
-    DEFAULT_REQUEST_TIMEOUT,
-    ENV_WAVESPEED_REQUEST_TIMEOUT,
+    DEFAULT_WAIT_RESULT_TIMEOUT,
+    ENV_WAVESPEED_WAIT_RESULT_TIMEOUT,
 )
 
 logger = logging.getLogger("wavespeed-client")
@@ -143,14 +143,16 @@ class WavespeedAPIClient:
         )
 
         start_time = time.time()
-        # Resolve total timeout
+        # Resolve total timeout using WAIT_RESULT env/default
         if total_timeout is None:
             try:
                 total_timeout = float(
-                    os.getenv(ENV_WAVESPEED_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT)
+                    os.getenv(
+                        ENV_WAVESPEED_WAIT_RESULT_TIMEOUT, DEFAULT_WAIT_RESULT_TIMEOUT
+                    )
                 )
             except Exception:
-                total_timeout = float(DEFAULT_REQUEST_TIMEOUT)
+                total_timeout = float(DEFAULT_WAIT_RESULT_TIMEOUT)
 
         while True:
             if max_retries != -1 and attempt >= max_retries:
