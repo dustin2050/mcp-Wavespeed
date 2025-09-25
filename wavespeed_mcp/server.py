@@ -199,8 +199,10 @@ def _process_wavespeed_request(
             f"[{request_id}] {operation_name} request submitted with WaveSpeed ID: {wavespeed_request_id}"
         )
 
-        # Poll for results
-        result = api_client.poll_result(wavespeed_request_id, request_id=request_id)
+        # Poll for results (honor server-level request_timeout)
+        result = api_client.poll_result(
+            wavespeed_request_id, request_id=request_id, total_timeout=request_timeout
+        )
         outputs = result.get("outputs", [])
 
         if not outputs:

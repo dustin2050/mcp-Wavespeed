@@ -1,6 +1,7 @@
 """WaveSpeed API client base class."""
 
 import time
+import os
 import requests
 import logging
 from typing import Dict, Any
@@ -10,7 +11,11 @@ from wavespeed_mcp.exceptions import (
     WavespeedRequestError,
     WavespeedTimeoutError,
 )
-from wavespeed_mcp.const import API_PREDICTION_ENDPOINT
+from wavespeed_mcp.const import (
+    API_PREDICTION_ENDPOINT,
+    DEFAULT_REQUEST_TIMEOUT,
+    ENV_WAVESPEED_REQUEST_TIMEOUT,
+)
 
 logger = logging.getLogger("wavespeed-client")
 
@@ -109,6 +114,7 @@ class WavespeedAPIClient:
         max_retries: int = -1,
         poll_interval: float = 0.5,
         request_id: str = None,
+        total_timeout: float = None,
     ) -> Dict[str, Any]:
         """Poll for the result of an asynchronous API request.
 
@@ -117,6 +123,8 @@ class WavespeedAPIClient:
             max_retries: Maximum number of polling attempts. -1 for infinite retries.
             poll_interval: Time in seconds between polling attempts
             request_id: Optional MCP request ID for logging correlation
+            total_timeout: Optional maximum total polling time in seconds. If not provided,
+                will use ENV_WAVESPEED_REQUEST_TIMEOUT or DEFAULT_REQUEST_TIMEOUT.
 
         Returns:
             The final result of the API request
@@ -135,6 +143,14 @@ class WavespeedAPIClient:
         )
 
         start_time = time.time()
+        # Resolve total timeout
+        if total_timeout is None:
+            try:
+                total_timeout = float(
+                    os.getenv(ENV_WAVESPEED_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT)
+                )
+            except Exception:
+                total_timeout = float(DEFAULT_REQUEST_TIMEOUT)
 
         while True:
             if max_retries != -1 and attempt >= max_retries:
@@ -146,11 +162,28 @@ class WavespeedAPIClient:
                     f"Polling timed out after {max_retries} attempts"
                 )
 
+            # Check total timeout window
+            elapsed_total = time.time() - start_time
+            if total_timeout is not None and total_timeout > 0 and elapsed_total >= total_timeout:
+                logger.error(
+                    (
+                        f"{log_prefix} API polling exceeded total timeout of "
+                        f"{total_timeout:.1f}s after {attempt+1} attempts"
+                    )
+                )
+                raise WavespeedTimeoutError(
+                    f"Polling timed out after {total_timeout:.1f} seconds"
+                )
+
             try:
                 # Reduce log frequency - only log every 20 attempts (10 seconds)
                 if attempt % 20 == 0 and attempt > 0:
                     logger.debug(
-                        f"{log_prefix} Polling attempt {attempt+1}/{max_retries if max_retries != -1 else '∞'} ({time.time() - start_time:.1f}s elapsed)"
+                        (
+                            f"{log_prefix} Polling attempt {attempt+1}/"
+                            f"{max_retries if max_retries != -1 else '∞'} "
+                            f"({time.time() - start_time:.1f}s elapsed)"
+                        )
                     )
 
                 response = self.get(result_url)
