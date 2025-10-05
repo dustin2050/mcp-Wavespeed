@@ -16,7 +16,10 @@ import uuid
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+try:
+    from fastmcp import FastMCP
+except ImportError:  # fallback for hosts with legacy MCP package
+    from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
 from wavespeed_mcp.utils import (
