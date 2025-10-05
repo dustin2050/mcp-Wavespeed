@@ -5,7 +5,6 @@ Note: These tests require a valid WaveSpeed API key to run.
 """
 
 import os
-import asyncio
 import unittest
 import json
 from dotenv import load_dotenv
@@ -14,7 +13,7 @@ from mcp.client.stdio import stdio_client
 from mcp import StdioServerParameters
 
 
-class TestWavespeedIntegration(unittest.TestCase):
+class TestWavespeedIntegration(unittest.IsolatedAsyncioTestCase):
     """Integration tests for WavespeedMCP."""
 
     @classmethod
@@ -47,7 +46,7 @@ class TestWavespeedIntegration(unittest.TestCase):
                 result = await client.call_tool(tool_name, params)
                 return result
 
-    def test_generate_image(self):
+    async def test_generate_image(self):
         """Test generating an image."""
         params = {
             "prompt": "A beautiful mountain landscape with a lake",
@@ -56,7 +55,7 @@ class TestWavespeedIntegration(unittest.TestCase):
         }
 
         print("Calling API with params:", params)
-        result = asyncio.run(self._run_client("text_to_image", params))
+        result = await self._run_client("text_to_image", params)
         print("Received API response: ", result)
 
         # Verify result
@@ -80,7 +79,7 @@ class TestWavespeedIntegration(unittest.TestCase):
         self.assertIsNone(data["error"])
         print(f"Generated image URL: {url}")
 
-    def test_generate_video(self):
+    async def test_generate_video(self):
         """Test generating a video."""
         # For testing, we'll use a sample image URL
         # In a real test, you would use a valid image URL
@@ -90,7 +89,7 @@ class TestWavespeedIntegration(unittest.TestCase):
             "duration": 5,  # Short duration for faster testing
         }
 
-        result = asyncio.run(self._run_client("generate_video", params))
+        result = await self._run_client("generate_video", params)
 
         # Verify result
         self.assertIsNotNone(result)
