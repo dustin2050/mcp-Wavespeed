@@ -122,7 +122,22 @@ wait_result_timeout = int(
 mcp = FastMCP(
     "WaveSpeed", log_level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL)
 )
-api_client = None  # Will be initialized on @mcp.on_start
+api_client = None  # Lazy-initialized on first request
+
+# Lazy client initialization (no FastMCP lifecycle hooks required)
+def _get_client():
+    global api_client, api_key
+    if _get_client() is None:
+        api_key = os.getenv(ENV_WAVESPEED_API_KEY)
+        if not api_key:
+            return None
+        api_host_env = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
+        try:
+            from wavespeed_mcp.client import WavespeedAPIClient  # ensure import is available
+        except Exception:
+            pass
+        api_client = WavespeedAPIClient(api_key, f"{api_host_env}{API_BASE_PATH}/{API_VERSION}")
+    return api_client
 
 @mcp.on_start
 async def _init_wavespeed_client():
@@ -441,7 +456,7 @@ def text_to_image(
 ):
     """Generate an image from text prompt using WaveSpeed AI."""
     # Ensure client is initialized
-    if api_client is None:
+    if _get_client() is None:
         error_result = WaveSpeedResult(
             status="error",
             error=f"{ENV_WAVESPEED_API_KEY} is not set or client not initialized. Please configure the API key.",
