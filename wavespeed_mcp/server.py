@@ -211,9 +211,17 @@ def _process_wavespeed_request(
     logger.info(f"[{request_id}] Making {operation_name} API request to {api_endpoint}")
     logger.info(f"[{request_id}] Request payload: {json.dumps(payload, indent=2)}")
 
+    client = _ensure_client()
+    if client is None:
+        error_result = WaveSpeedResult(
+            status="error",
+            error="WaveSpeed API key is not configured. Set the WAVESPEED_API_KEY environment variable.",
+        )
+        return TextContent(type="text", text=error_result.to_json())
+
     try:
         # Make API request
-        response_data = api_client.post(api_endpoint, json=payload)
+        response_data = client.post(api_endpoint, json=payload)
         wavespeed_request_id = response_data.get("data", {}).get("id")
 
         if not wavespeed_request_id:
@@ -231,7 +239,7 @@ def _process_wavespeed_request(
         )
 
         # Poll for results using server-level wait_result_timeout
-        result = api_client.poll_result(
+        result = client.poll_result(
             wavespeed_request_id,
             request_id=request_id,
             total_timeout=wait_result_timeout,
