@@ -114,14 +114,27 @@ wait_result_timeout = int(
 )
 
 # Validate required environment variables
-if not api_key:
-    raise ValueError(f"{ENV_WAVESPEED_API_KEY} environment variable is required")
+# Defer API key validation to runtime (@mcp.on_start) to avoid import-time failures in hosting environments.
+# if not api_key:
+#     raise ValueError(f"{ENV_WAVESPEED_API_KEY} environment variable is required")
 
 # Initialize MCP server and API client
 mcp = FastMCP(
     "WaveSpeed", log_level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL)
 )
-api_client = WavespeedAPIClient(api_key, f"{api_host}{API_BASE_PATH}/{API_VERSION}")
+api_client = None  # Will be initialized on @mcp.on_start
+
+@mcp.on_start
+async def _init_wavespeed_client():
+    """Initialize API client on server start (not at import time)."""
+    global api_client, api_key
+    api_key = os.getenv(ENV_WAVESPEED_API_KEY)
+    if not api_key:
+        logger.error(f"{ENV_WAVESPEED_API_KEY} is not set. Server will respond with an error until it is configured.")
+        return
+    api_host_env = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
+    api_client = WavespeedAPIClient(api_key, f"{api_host_env}{API_BASE_PATH}/{API_VERSION}")
+    logger.info("WaveSpeed API client initialized")
 
 
 class FileInfo(BaseModel):
@@ -427,6 +440,14 @@ def text_to_image(
     request_id: str = None,
 ):
     """Generate an image from text prompt using WaveSpeed AI."""
+    # Ensure client is initialized
+    if api_client is None:
+        error_result = WaveSpeedResult(
+            status="error",
+            error=f"{ENV_WAVESPEED_API_KEY} is not set or client not initialized. Please configure the API key.",
+        )
+        return TextContent(type="text", text=error_result.to_json())
+
 
     # Generate unique request ID for tracking
     if not request_id:
