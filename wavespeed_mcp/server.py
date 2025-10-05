@@ -769,11 +769,4 @@ def generate_video(
     )
 
 
-def main():
-    print("Starting WaveSpeed MCP server")
-    """Run the WaveSpeed MCP server"""
-    mcp.run()
-
-
-if __name__ == "__main__":
-    main()
+# main() and __main__ guard removed for cloud hosting (loop is started by the platform)
