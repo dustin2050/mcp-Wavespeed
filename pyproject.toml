@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [project.scripts]
-wavespeed-mcp = "wavespeed_mcp.server:main"
+wavespeed-mcp = "wavespeed_mcp.server:mcp"
 
 [project.optional-dependencies]
 dev = [

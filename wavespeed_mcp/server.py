@@ -13,6 +13,7 @@ import time
 import json
 import logging
 import uuid
+import asyncio
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -105,8 +106,6 @@ else:
 logger = logging.getLogger("wavespeed-mcp")
 
 # Get configuration from environment variables
-api_key = os.getenv(ENV_WAVESPEED_API_KEY)
-api_host = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
 base_path = os.getenv(ENV_WAVESPEED_MCP_BASE_PATH) or "~/Desktop"
 resource_mode = os.getenv(ENV_RESOURCE_MODE, RESOURCE_MODE_URL)
 # Per-request HTTP timeout
@@ -122,30 +121,33 @@ wait_result_timeout = int(
 #     raise ValueError(f"{ENV_WAVESPEED_API_KEY} environment variable is required")
 
 # Initialize MCP server and API client
-mcp = FastMCP(
-    "WaveSpeed", log_level=os.getenv(ENV_FASTMCP_LOG_LEVEL, DEFAULT_LOG_LEVEL)
-)
+mcp = FastMCP("WaveSpeed")
 api_client = None  # Lazy init on first request
+_initialized = False
+_init_lock = asyncio.Lock()
 
 # --- Lazy initialization helper (replaces @on_start-style init) ---
-def _ensure_client():
-    """Create the WavespeedAPIClient on first use. Returns client or None if not configured."""
-    global api_client, api_key, api_host
-    if api_client is not None:
-        return api_client
-    api_key = os.getenv(ENV_WAVESPEED_API_KEY)
-    if not api_key:
-        logger.error(f"{ENV_WAVESPEED_API_KEY} is not set")
-        return None
-    api_host = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
-    try:
-        client = WavespeedAPIClient(api_key, f"{api_host}{API_BASE_PATH}/{API_VERSION}")
-    except Exception as e:
-        logger.exception(f"Failed to initialize API client: {e}")
-        return None
-    api_client = client
-    logger.info("WaveSpeed API client initialized")
-    return api_client
+async def _ensure_initialized():
+    """Create the WavespeedAPIClient on first use. Thread-safe async initialization."""
+    global api_client, _initialized
+    if _initialized:
+        return
+    async with _init_lock:
+        if _initialized:
+            return
+        api_key = os.getenv(ENV_WAVESPEED_API_KEY)
+        if not api_key:
+            logger.error(f"{ENV_WAVESPEED_API_KEY} is not set")
+            _initialized = True
+            return
+        api_host = os.getenv(ENV_WAVESPEED_API_HOST, "https://api.wavespeed.ai")
+        try:
+            client = WavespeedAPIClient(api_key, f"{api_host}{API_BASE_PATH}/{API_VERSION}")
+            api_client = client
+            logger.info("WaveSpeed API client initialized")
+        except Exception as e:
+            logger.exception(f"Failed to initialize API client: {e}")
+        _initialized = True
 
 
 class FileInfo(BaseModel):
@@ -179,7 +181,7 @@ class WaveSpeedResult(BaseModel):
         return json.dumps(self.model_dump(), indent=2)
 
 
-def _process_wavespeed_request(
+async def _process_wavespeed_request(
     api_endpoint: str,
     payload: dict,
     output_directory: Optional[str],
@@ -204,6 +206,15 @@ def _process_wavespeed_request(
     Returns:
         TextContent with the result JSON
     """
+    
+    # Ensure client is initialized
+    await _ensure_initialized()
+    if api_client is None:
+        error_result = WaveSpeedResult(
+            status="error",
+            error=f"{ENV_WAVESPEED_API_KEY} is not set or client not initialized.",
+        )
+        return TextContent(type="text", text=error_result.to_json())
 
     begin_time = time.time()
 
@@ -445,7 +456,7 @@ def get_video_models(model):
         Non-English prompts may result in lower quality or unexpected images.
     """
 )
-def text_to_image(
+async def text_to_image(
     prompt: str,
     model: Optional[str] = None,
     loras: Optional[List[Dict[str, Union[str, float]]]] = None,
@@ -505,7 +516,7 @@ def text_to_image(
         "enable_safety_checker": enable_safety_checker,
     }
 
-    return _process_wavespeed_request(
+    return await _process_wavespeed_request(
         api_endpoint=get_models(model),
         payload=payload,
         output_directory=output_directory,
@@ -548,7 +559,7 @@ def text_to_image(
         Non-English prompts may result in lower quality or unexpected images.
     """
 )
-def image_to_image(
+async def image_to_image(
     image: str,
     images: List[str],
     prompt: str,
@@ -627,7 +638,7 @@ def image_to_image(
         )
         return TextContent(type="text", text=error_result.to_json())
 
-    return _process_wavespeed_request(
+    return await _process_wavespeed_request(
         api_endpoint=get_image_models(model),
         payload=payload,
         output_directory=output_directory,
@@ -681,7 +692,7 @@ def image_to_image(
         you MUST translate it to English before passing to this tool.
     """
 )
-def generate_video(
+async def generate_video(
     image: str,
     prompt: str,
     model: Optional[str] = None,
@@ -769,7 +780,7 @@ def generate_video(
         "enable_safety_checker": enable_safety_checker,
     }
 
-    return _process_wavespeed_request(
+    return await _process_wavespeed_request(
         api_endpoint=get_video_models(model),
         payload=payload,
         output_directory=output_directory,
